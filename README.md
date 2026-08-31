@@ -1,5 +1,7 @@
 # Network iOS
 
+![Network iOS](docs/network-banner.png)
+
 A read-only, swipeable "digital Rolodex" over TODD's Network/contacts data — one full-screen contact card at a time, swipe up for the next. No dashboard, no table, no editing. If you need to change a contact, that's still TODD on the web; this app answers "who is this, should I contact them, how do I contact them."
 
 Backend stays shared with `taliferrotech`/`todd-backend` — no functionality was duplicated. Two backend additions were made alongside this app (see `todd-backend/functions/networkRoutes.js` and `networkLogoEnrichment.service.js`):
@@ -19,9 +21,10 @@ Tenant resolution mirrors `frontend/src/app/services/auth.service.ts`'s `resolve
 ## What's in scope (this pass)
 
 1. Sign in, then a full-screen swipeable card feed (`Features/Feed`) — company logo or a generated monogram, name, title, company, location, relationship, last-contacted.
-2. Natural-language search bar, wired to the existing `getAIParsedQuery` (same NL parser the web app's contact search already uses) via `/network/cards?query=...`. **Not** a port of the web app's 300-line synonym/fuzzy `filterContacts()` — see the comment on `matchesParsedFilters` in `networkRoutes.js` for why that was deliberately left alone rather than duplicated.
-3. **Email with Maya** (`Features/Compose`) — draft via `/email-drafting/draft` (the same drafting engine web Composer/Catalyst uses), then a **mandatory preview screen**, then an explicit Send tap → `/send-email`. Never auto-sends — matches TODD's existing draft-only/approval-first policy elsewhere in the product.
-4. **Share** — a client-side-built vCard handed to the native share sheet (AirDrop/Messages/Mail/Save Contact). No backend round-trip.
+2. A lazy, per-card relationship-strategy line from `/contact-insight` (`getContactInsight` server-side) — "good time to reconnect" style, loaded one card at a time as it becomes current, never batched across a page since it's a live OpenAI call.
+3. Natural-language search bar, wired to the existing `getAIParsedQuery` (same NL parser the web app's contact search already uses) via `/network/cards?query=...`. **Not** a port of the web app's 300-line synonym/fuzzy `filterContacts()` — see the comment on `matchesParsedFilters` in `networkRoutes.js` for why that was deliberately left alone rather than duplicated.
+4. **Email with Maya** (`Features/Compose`) — draft via `/email-drafting/draft` (the same drafting engine web Composer/Catalyst uses), then a **mandatory preview screen**, then an explicit Send tap → `/send-email`. Never auto-sends — matches TODD's existing draft-only/approval-first policy elsewhere in the product.
+5. **Share** — a client-side-built vCard handed to the native share sheet (AirDrop/Messages/Mail/Save Contact). No backend round-trip.
 
 ## Explicitly out of scope (v2)
 
@@ -43,7 +46,8 @@ open NetworkIOS.xcodeproj
 
 - Sign In with Apple must be enabled on this app's App ID in the (paid) Apple Developer portal — `project.yml` requests the capability, but the portal-side toggle is a separate account-level step.
 - A `GoogleService-Info.plist` for a **new iOS app registration** in the `taliferrotech` Firebase project (bundle id `tech.taliferro.networkios`, matching `project.yml`). Firebase console → Project settings → Add app → iOS → download the plist → drop it at `NetworkIOS/GoogleService-Info.plist`. Intentionally not checked in.
-- The backend additions (`networkRoutes.js`, `networkLogoEnrichment.service.js`, the `onContactWrittenForCompanyLogo` trigger) need to actually be deployed to `todd-backend` before this app can load anything.
+
+The backend additions (`networkRoutes.js`, `networkLogoEnrichment.service.js`, the `onContactWrittenForCompanyLogo` trigger) are deployed and live — `GET /network/cards` correctly returns 401 without a valid Firebase ID token, verified in production.
 
 ## Required config
 
@@ -61,8 +65,8 @@ Backend (new, alongside this app):
 
 Backend (existing, reused as-is):
 
-- `todd-backend/functions/openaiRoutes.js` (`/parse-query`, `/email-drafting/draft`)
-- `todd-backend/functions/open-ai.js` (`getAIParsedQuery`, `getContactInsight` — not yet wired into this app's UI)
+- `todd-backend/functions/openaiRoutes.js` (`/parse-query`, `/email-drafting/draft`, `/contact-insight`)
+- `todd-backend/functions/open-ai.js` (`getAIParsedQuery`, `getContactInsight`)
 - `todd-backend/functions/emailDrafting.service.js` (`draftStructuredEmail`)
 - `todd-backend/functions/email.js` (`/send-email`)
 
