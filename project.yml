@@ -1,0 +1,51 @@
+name: NetworkIOS
+options:
+  minimumXcodeGenVersion: 2.38.0
+configs:
+  Debug: debug
+  Release: release
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: tech.taliferro.networkios
+    IPHONEOS_DEPLOYMENT_TARGET: 17.0
+    SWIFT_VERSION: 5.0
+packages:
+  FirebaseiOS:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: 10.29.0
+  TODDAuthKit:
+    path: ../TODDAuthKit
+targets:
+  NetworkIOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: NetworkIOS
+    settings:
+      base:
+        PRODUCT_NAME: NetworkIOS
+        NETWORK_API_BASE_URL: https://api.taliferro.tech/api
+        NETWORK_API_KEY: ""
+    info:
+      path: Generated/Info.plist
+      properties:
+        CFBundleDisplayName: Network
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        NETWORK_API_BASE_URL: $(NETWORK_API_BASE_URL)
+        NETWORK_API_KEY: $(NETWORK_API_KEY)
+    entitlements:
+      path: Generated/NetworkIOS.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
+    dependencies:
+      - package: FirebaseiOS
+        product: FirebaseAuth
+      - package: FirebaseiOS
+        product: FirebaseFirestore
+      - package: TODDAuthKit
+    scheme:
+      testTargets: []
