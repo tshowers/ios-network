@@ -15,7 +15,7 @@ struct CardFeedView: View {
 
     var body: some View {
         ZStack {
-            BackgroundVideoView().ignoresSafeArea()
+            BackgroundView().ignoresSafeArea()
 
             VStack(spacing: 0) {
                 header

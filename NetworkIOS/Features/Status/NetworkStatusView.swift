@@ -19,7 +19,7 @@ struct NetworkStatusView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                BackgroundVideoView().ignoresSafeArea()
+                BackgroundView().ignoresSafeArea()
                 Color.black.opacity(0.35).ignoresSafeArea()
 
                 ScrollView {
