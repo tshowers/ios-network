@@ -1,17 +1,15 @@
 import SwiftUI
 
-/// The main screen: a gesture-driven card stack, not a stock paging `TabView` —
-/// the current card rises/rotates away and the next one is already peeking
-/// underneath, per the "turning a page in a premium business card book" brief.
-/// Near-zero chrome on purpose: search + settings only, the card is the interface.
+/// The main screen: a real `UIPageViewController` page curl (`PageCurlView`),
+/// not a hand-rolled gesture stack — the "turning a page in a premium
+/// business card book" brief, matched literally with forward AND backward
+/// swipes. Near-zero chrome on purpose: search + settings only, the card is
+/// the interface.
 struct CardFeedView: View {
     @StateObject var viewModel: CardFeedViewModel
-    @State private var dragOffset: CGSize = .zero
     @State private var isShowingSearch = false
     @State private var isComposing = false
     @State private var shareItem: IdentifiableURL?
-
-    private let swipeDismissThreshold: CGFloat = 120
 
     var body: some View {
         ZStack {
@@ -25,14 +23,28 @@ struct CardFeedView: View {
                     ProgressView()
                     Spacer()
                 } else if let card = viewModel.currentCard {
-                    cardStack(currentCard: card)
+                    PageCurlView(
+                        cards: viewModel.cards,
+                        currentIndex: $viewModel.currentIndex,
+                        insight: { viewModel.insight(for: $0) },
+                        isSelf: { viewModel.isSelf($0) },
+                        onDisplay: { displayed in
+                            viewModel.loadInsightIfNeeded(for: displayed)
+                            Task { await viewModel.loadMoreIfNeeded() }
+                        }
+                    )
                     actionBar(for: card)
                 } else {
                     emptyState
                 }
             }
         }
-        .task { await viewModel.loadInitial() }
+        .task {
+            await viewModel.loadInitial()
+            if let card = viewModel.currentCard {
+                viewModel.loadInsightIfNeeded(for: card)
+            }
+        }
         .sheet(isPresented: $isComposing) {
             if let card = viewModel.currentCard {
                 ComposeWithMayaView(viewModel: ComposeWithMayaViewModel(card: card, apiClient: viewModel.apiClient))
@@ -88,53 +100,6 @@ struct CardFeedView: View {
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
-    }
-
-    private func cardStack(currentCard: ContactCard) -> some View {
-        ZStack {
-            if let next = viewModel.nextCard {
-                ContactCardView(card: next)
-                    .scaleEffect(0.94)
-                    .offset(y: 14)
-                    .opacity(0.6)
-            }
-
-            ContactCardView(
-                card: currentCard,
-                insight: viewModel.insight(for: currentCard),
-                isSelf: viewModel.isSelf(currentCard)
-            )
-                .onAppear { viewModel.loadInsightIfNeeded(for: currentCard) }
-                .offset(y: dragOffset.height)
-                .rotationEffect(.degrees(Double(dragOffset.height / 20)), anchor: .bottom)
-                .opacity(1 - min(abs(dragOffset.height) / 400, 0.4))
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            // Only care about vertical intent - this is a swipe-up
-                            // stack, not a left/right one.
-                            dragOffset = CGSize(width: 0, height: min(value.translation.height, 40))
-                        }
-                        .onEnded { value in
-                            if value.translation.height < -swipeDismissThreshold {
-                                withAnimation(.easeIn(duration: 0.22)) {
-                                    dragOffset = CGSize(width: 0, height: -900)
-                                }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
-                                    viewModel.advance()
-                                    dragOffset = .zero
-                                }
-                            } else {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                    dragOffset = .zero
-                                }
-                            }
-                        }
-                )
-                .animation(.spring(response: 0.35, dampingFraction: 0.8), value: dragOffset)
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
     }
 
     private func actionBar(for card: ContactCard) -> some View {

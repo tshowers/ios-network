@@ -59,10 +59,6 @@ final class CardFeedViewModel: ObservableObject {
         cards.indices.contains(currentIndex) ? cards[currentIndex] : nil
     }
 
-    var nextCard: ContactCard? {
-        cards.indices.contains(currentIndex + 1) ? cards[currentIndex + 1] : nil
-    }
-
     func loadInitial() async {
         guard cards.isEmpty else { return }
         await reload()
@@ -97,7 +93,7 @@ final class CardFeedViewModel: ObservableObject {
         await reload()
     }
 
-    /// Called as the user swipes into the last couple of cards, so the next
+    /// Called as the user pages into the last couple of cards, so the next
     /// page is already loaded by the time they get there.
     func loadMoreIfNeeded() async {
         guard !isSearchMode, !isLoading, let nextCursor else { return }
@@ -111,11 +107,5 @@ final class CardFeedViewModel: ObservableObject {
             // Silent - the user hasn't hit the end of the loaded stack yet,
             // no need to interrupt them with an error for a background prefetch.
         }
-    }
-
-    func advance() {
-        guard currentIndex < cards.count - 1 else { return }
-        currentIndex += 1
-        Task { await loadMoreIfNeeded() }
     }
 }
