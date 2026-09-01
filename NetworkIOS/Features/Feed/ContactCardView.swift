@@ -77,9 +77,18 @@ struct ContactCardView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(
+            // `.background` and the page's `.systemGroupedBackground` are
+            // nearly the same shade of near-black in dark mode - there was
+            // no visible card at all, just flat black. secondary/systemGrouped
+            // is the pair iOS actually designs for this "card floating on a
+            // grouped page" contrast, in both light and dark automatically.
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(.background)
+                .fill(Color(.secondarySystemGroupedBackground))
                 .shadow(color: .black.opacity(0.12), radius: 24, y: 12)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(monogramColor.opacity(0.25), lineWidth: 1)
         )
         .overlay(alignment: .topTrailing) {
             if card.important {
@@ -155,7 +164,7 @@ struct ContactCardView: View {
             )
         }
         .padding(.vertical, 4)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 24)
     }
 
@@ -207,6 +216,9 @@ struct ContactCardView: View {
                 statItem(icon: "megaphone", label: "Source", value: card.source.isEmpty ? "—" : card.source)
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, 24)
     }
 
