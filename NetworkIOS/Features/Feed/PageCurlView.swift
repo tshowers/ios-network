@@ -20,7 +20,6 @@ struct PageCurlView: UIViewControllerRepresentable {
         pageVC.dataSource = context.coordinator
         pageVC.delegate = context.coordinator
         pageVC.view.backgroundColor = .clear
-        pageVC.isDoubleSided = false
         if let initial = context.coordinator.controller(for: currentIndex) {
             pageVC.setViewControllers([initial], direction: .forward, animated: false)
         }
@@ -86,19 +85,6 @@ struct PageCurlView: UIViewControllerRepresentable {
         ) -> UIViewController? {
             guard let idx = index(of: viewController) else { return nil }
             return controller(for: idx + 1)
-        }
-
-        /// Without this, `.pageCurl` on a regular-width iPad (landscape)
-        /// defaults to a two-page "open book" spine layout, which is why the
-        /// card rendered narrower than the screen with a visible gap beside
-        /// it — forcing `.min` keeps it a single full-width page in every
-        /// orientation, matching iPhone.
-        func pageViewController(
-            _ pageViewController: UIPageViewController,
-            spineLocationFor orientation: UIInterfaceOrientation
-        ) -> UIPageViewController.SpineLocation {
-            pageViewController.isDoubleSided = false
-            return .min
         }
 
         func pageViewController(
