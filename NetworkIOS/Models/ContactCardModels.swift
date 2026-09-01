@@ -13,9 +13,14 @@ struct ContactCard: Codable, Identifiable, Equatable {
     let city: String
     let state: String
     let relationship: String
+    let category: String
+    let source: String
+    let important: Bool
     let lastContacted: String?
     let email: String
+    let additionalEmailCount: Int
     let phone: String
+    let additionalPhoneCount: Int
     let linkedInUrl: String
 
     var id: String { contactId }

@@ -145,24 +145,23 @@ struct CardFeedView: View {
                 Button {
                     isComposing = true
                 } label: {
-                    Label("Email with Maya", systemImage: "sparkles")
+                    Label("Maya", systemImage: "sparkles")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
             }
 
-            // Self's card is "here's my info" - worth the full-width,
-            // prominent treatment rather than a secondary-looking button.
-            // (Two near-identical branches rather than one button with a
-            // ternary style/frame - .buttonStyle(.bordered vs .borderedProminent)
-            // are different concrete types, which a ternary can't unify.)
+            // Two near-identical branches rather than one button with a
+            // ternary style - .buttonStyle(.bordered vs .borderedProminent)
+            // are different concrete types, which a ternary can't unify.
+            // Self gets the prominent style since Share is its only action.
             if isSelf {
                 Button {
                     if let url = ShareCardBuilder.temporaryVCardFile(for: card) {
                         shareItem = IdentifiableURL(url: url)
                     }
                 } label: {
-                    Label("Share My Card", systemImage: "square.and.arrow.up")
+                    Label("Share", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
@@ -173,6 +172,7 @@ struct CardFeedView: View {
                     }
                 } label: {
                     Label("Share", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
             }
