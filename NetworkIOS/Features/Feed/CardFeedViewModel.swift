@@ -11,6 +11,11 @@ final class CardFeedViewModel: ObservableObject {
     /// becomes current — never prefetched for a whole page (see
     /// `NetworkAPIClient.fetchInsight`).
     @Published private(set) var insightsByContactId: [String: String] = [:]
+    /// Denominator for the header's "N of Total" counter — the tenant's
+    /// whole contact count, not just how many pages have been fetched so
+    /// far. Reuses `/network/stats` (built for the Network Status screen)
+    /// rather than adding a second endpoint just for this number.
+    @Published private(set) var totalContacts: Int?
 
     let apiClient: NetworkAPIClient
     /// TODD creates a person's own contact record using their uid as the
@@ -57,6 +62,15 @@ final class CardFeedViewModel: ObservableObject {
 
     var currentCard: ContactCard? {
         cards.indices.contains(currentIndex) ? cards[currentIndex] : nil
+    }
+
+    /// Fire-and-forget, same reasoning as `loadInsightIfNeeded` — a header
+    /// counter isn't worth blocking the card feed over if it fails.
+    func loadTotalContactsIfNeeded() {
+        guard totalContacts == nil else { return }
+        Task {
+            totalContacts = try? await apiClient.fetchStats().totalContacts
+        }
     }
 
     func loadInitial() async {

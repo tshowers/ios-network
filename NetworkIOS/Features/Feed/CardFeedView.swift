@@ -43,6 +43,7 @@ struct CardFeedView: View {
         }
         .task {
             await viewModel.loadInitial()
+            viewModel.loadTotalContactsIfNeeded()
             if let card = viewModel.currentCard {
                 viewModel.loadInsightIfNeeded(for: card)
             }
@@ -80,18 +81,22 @@ struct CardFeedView: View {
 
             Spacer()
 
-            Text("Network")
-                .font(.headline)
+            positionCounter
 
             Spacer()
 
-            Button {
-                isShowingSearch.toggle()
+            Menu {
+                Button {
+                    isShowingSearch.toggle()
+                } label: {
+                    Label(isShowingSearch ? "Hide Search" : "Search", systemImage: "magnifyingglass")
+                }
             } label: {
-                Image(systemName: isShowingSearch ? "xmark.circle" : "magnifyingglass")
+                Image(systemName: "ellipsis")
             }
         }
         .font(.title3)
+        .foregroundStyle(.white)
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, isShowingSearch ? 0 : 8)
@@ -99,6 +104,21 @@ struct CardFeedView: View {
         if isShowingSearch {
             searchBar
         }
+    }
+
+    /// "N of Total" - matches the position pill in the reference design.
+    /// `viewModel.totalContacts` is the tenant's real contact count (from
+    /// `/network/stats`), not just how many pages have loaded so far.
+    private var positionCounter: some View {
+        Group {
+            if !viewModel.cards.isEmpty {
+                Text("\(viewModel.currentIndex + 1) of \(viewModel.totalContacts.map(String.init) ?? "\(viewModel.cards.count)")")
+            }
+        }
+        .font(.subheadline.weight(.semibold))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(.white.opacity(0.15), in: Capsule())
     }
 
     private var searchBar: some View {
@@ -110,6 +130,7 @@ struct CardFeedView: View {
 
             if !viewModel.searchQuery.isEmpty {
                 Button("Clear") { Task { await viewModel.clearSearch() } }
+                    .foregroundStyle(.white)
             }
         }
         .padding(.horizontal, 20)

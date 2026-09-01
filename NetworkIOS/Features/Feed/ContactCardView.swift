@@ -20,11 +20,19 @@ struct ContactCardView: View {
     /// your own info on file is exactly the point.
     var isSelf: Bool = false
 
+    private var hasLetterhead: Bool { !card.company.name.isEmpty }
+
     var body: some View {
         VStack(spacing: 20) {
-            Spacer(minLength: 12)
+            if hasLetterhead {
+                LetterheadBanner(companyName: card.company.name, logoUrl: card.company.logoUrl)
+            } else {
+                Spacer(minLength: 12)
+            }
 
             avatar
+                .offset(y: hasLetterhead ? -46 : 0)
+                .padding(.bottom, hasLetterhead ? -46 : 0)
 
             VStack(spacing: 6) {
                 HStack(spacing: 8) {
