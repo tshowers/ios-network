@@ -100,6 +100,20 @@ struct CardFeedView: View {
         .padding(.horizontal, 20)
         .padding(.top, 8)
         .padding(.bottom, isShowingSearch ? 0 : 8)
+        .background(
+            // White icons/text need a guaranteed-dark patch under them
+            // regardless of which part of the background image ends up here
+            // (device aspect ratio varies where the wave band lands) -
+            // without this the header can go fully invisible, not just hard
+            // to read.
+            LinearGradient(
+                colors: [.black.opacity(0.35), .black.opacity(0)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 90)
+            .ignoresSafeArea(edges: .top)
+        )
 
         if isShowingSearch {
             searchBar

@@ -64,6 +64,17 @@ struct PageCurlView: UIViewControllerRepresentable {
             )
             host.view.backgroundColor = .clear
             host.view.tag = index
+            // UIPageViewController's .pageCurl transition snapshots each page
+            // for the curl animation - without an explicit frame + a forced
+            // synchronous layout pass here, that snapshot can be taken before
+            // SwiftUI finishes resolving this fresh UIHostingController's
+            // layout (it starts from zero size every time, deliberately not
+            // memoized - see the note above), which would explain simple
+            // top-of-card content appearing while nested content further down
+            // (info/stats grids) doesn't, consistently, despite the source
+            // unconditionally rendering it.
+            host.view.frame = UIScreen.main.bounds
+            host.view.layoutIfNeeded()
             return host
         }
 
