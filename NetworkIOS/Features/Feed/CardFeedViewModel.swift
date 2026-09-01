@@ -49,6 +49,15 @@ final class CardFeedViewModel: ObservableObject {
     func loadInsightIfNeeded(for card: ContactCard) {
         guard !isSelf(card) else { return }
         guard insightsByContactId[card.contactId] == nil else { return }
+
+        // Pre-computed elsewhere in TODD - if it's there, show it immediately
+        // and skip the live call entirely rather than replacing it with a
+        // fresh generation the card doesn't need.
+        if !card.storedInsight.isEmpty {
+            insightsByContactId[card.contactId] = card.storedInsight
+            return
+        }
+
         guard !insightRequestsInFlight.contains(card.contactId) else { return }
         insightRequestsInFlight.insert(card.contactId)
 
