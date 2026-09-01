@@ -151,17 +151,31 @@ struct CardFeedView: View {
                 .buttonStyle(.borderedProminent)
             }
 
-            Button {
-                if let url = ShareCardBuilder.temporaryVCardFile(for: card) {
-                    shareItem = IdentifiableURL(url: url)
+            // Self's card is "here's my info" - worth the full-width,
+            // prominent treatment rather than a secondary-looking button.
+            // (Two near-identical branches rather than one button with a
+            // ternary style/frame - .buttonStyle(.bordered vs .borderedProminent)
+            // are different concrete types, which a ternary can't unify.)
+            if isSelf {
+                Button {
+                    if let url = ShareCardBuilder.temporaryVCardFile(for: card) {
+                        shareItem = IdentifiableURL(url: url)
+                    }
+                } label: {
+                    Label("Share My Card", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
                 }
-            } label: {
-                // Self's card is "here's my info" - worth the full-width
-                // treatment rather than a secondary-looking button.
-                Label(isSelf ? "Share My Card" : "Share", systemImage: "square.and.arrow.up")
-                    .frame(maxWidth: isSelf ? .infinity : nil)
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button {
+                    if let url = ShareCardBuilder.temporaryVCardFile(for: card) {
+                        shareItem = IdentifiableURL(url: url)
+                    }
+                } label: {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(isSelf ? .borderedProminent : .bordered)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
