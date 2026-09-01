@@ -3,6 +3,16 @@ import SwiftUI
 /// A single full-screen contact card. Deliberately not a list row shrunk down
 /// — the person owns the screen, per the product brief ("digital Rolodex that
 /// thinks," not a contact list).
+///
+/// The outer layout has NO background of its own — it's a transparent frame
+/// that individual section cards (header/info/stats/insight) float inside,
+/// over the app's single shared `BackgroundView`. Earlier this rendered its
+/// *own* copy of the wave image as a "letterhead" behind the header — with
+/// two independently-scaled copies of the same image (this one sized to the
+/// card, the app's sized to the screen), portrait mostly hid the seam but
+/// landscape/iPad (card narrower than the screen) showed them visibly
+/// misaligned, like two different backgrounds. Going transparent instead
+/// means there is only ever one image, so nothing can drift out of sync.
 struct ContactCardView: View {
     let card: ContactCard
     /// One-line relationship-strategy suggestion from `/contact-insight`
@@ -21,15 +31,71 @@ struct ContactCardView: View {
     var isSelf: Bool = false
 
     private var hasLetterhead: Bool { !card.company.name.isEmpty }
+    private let sectionFill = Color(.secondarySystemGroupedBackground)
 
     var body: some View {
         VStack(spacing: 20) {
             if hasLetterhead {
-                LetterheadBanner(companyName: card.company.name, logoUrl: card.company.logoUrl)
+                letterhead
             } else {
                 Spacer(minLength: 12)
             }
 
+            headerCard
+
+            infoList
+
+            if !isSelf {
+                statsGrid
+
+                if let insight, !insight.isEmpty {
+                    insightCard(insight)
+                }
+            }
+
+            Spacer(minLength: 12)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .topTrailing) {
+            if card.important {
+                Image(systemName: "star.fill")
+                    .foregroundStyle(.yellow)
+                    .padding(10)
+                    .background(.thinMaterial, in: Circle())
+                    .padding(16)
+            }
+        }
+    }
+
+    // MARK: - Letterhead (transparent — reveals the app's own BackgroundView)
+
+    private var letterhead: some View {
+        VStack(spacing: 8) {
+            if let logoUrlString = card.company.logoUrl, let url = URL(string: logoUrlString) {
+                AsyncImage(url: url) { phase in
+                    if case .success(let image) = phase {
+                        image.resizable().scaledToFit().frame(height: 34)
+                    }
+                }
+            }
+
+            Text(card.company.name.uppercased())
+                .font(.system(size: 14, weight: .bold))
+                .tracking(2.5)
+                .foregroundStyle(Color(red: 0.05, green: 0.1, blue: 0.2))
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .padding(.horizontal, 24)
+        }
+        .frame(height: 110)
+        .padding(.top, 30)
+    }
+
+    // MARK: - Header card (avatar, name, title, company, pills)
+
+    private var headerCard: some View {
+        VStack(spacing: 20) {
             avatar
                 .offset(y: hasLetterhead ? -46 : 0)
                 .padding(.bottom, hasLetterhead ? -46 : 0)
@@ -70,43 +136,20 @@ struct ContactCardView: View {
             if !isSelf, !card.relationship.isEmpty || card.important {
                 pillsRow
             }
-
-            infoList
-
-            if !isSelf {
-                statsGrid
-
-                if let insight, !insight.isEmpty {
-                    insightCard(insight)
-                }
-            }
-
-            Spacer(minLength: 12)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, hasLetterhead ? 0 : 20)
+        .padding(.bottom, 20)
+        .frame(maxWidth: .infinity)
         .background(
-            // `.background` and the page's `.systemGroupedBackground` are
-            // nearly the same shade of near-black in dark mode - there was
-            // no visible card at all, just flat black. secondary/systemGrouped
-            // is the pair iOS actually designs for this "card floating on a
-            // grouped page" contrast, in both light and dark automatically.
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color(.secondarySystemGroupedBackground))
-                .shadow(color: .black.opacity(0.12), radius: 24, y: 12)
+                .fill(sectionFill)
+                .shadow(color: .black.opacity(0.12), radius: 20, y: 10)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(monogramColor.opacity(0.25), lineWidth: 1)
+                .strokeBorder(monogramColor.opacity(0.2), lineWidth: 1)
         )
-        .overlay(alignment: .topTrailing) {
-            if card.important {
-                Image(systemName: "star.fill")
-                    .foregroundStyle(.yellow)
-                    .padding(10)
-                    .background(.thinMaterial, in: Circle())
-                    .padding(16)
-            }
-        }
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Pills
@@ -117,7 +160,7 @@ struct ContactCardView: View {
                 pill(text: card.relationship, tint: .green, dot: true)
             }
             if card.important {
-                pill(text: "Important", tint: .yellow, icon: "star.fill")
+                pill(text: "Important", tint: .orange, icon: "star.fill")
             }
         }
     }
@@ -133,10 +176,11 @@ struct ContactCardView: View {
             }
             Text(text)
                 .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(.thinMaterial, in: Capsule())
+        .background(tint.opacity(0.16), in: Capsule())
     }
 
     // MARK: - Info list (always shown, placeholders when empty — same
@@ -172,8 +216,12 @@ struct ContactCardView: View {
             )
         }
         .padding(.vertical, 4)
-        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .padding(.horizontal, 24)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(sectionFill)
+                .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
+        )
+        .padding(.horizontal, 16)
     }
 
     private func infoRow(icon: String, text: String, placeholder: String, additionalCount: Int = 0, url: URL?) -> some View {
@@ -192,7 +240,7 @@ struct ContactCardView: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .frame(width: 20)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color(.systemGray))
             Text(isEmpty ? placeholder : text)
                 .font(.subheadline)
                 .foregroundStyle(isEmpty ? .tertiary : .primary)
@@ -226,14 +274,18 @@ struct ContactCardView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
-        .background(Color(.tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .padding(.horizontal, 24)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(sectionFill)
+                .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
+        )
+        .padding(.horizontal, 16)
     }
 
     private func statItem(icon: String, label: String, value: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: icon)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color(.systemGray))
                 .frame(width: 18)
             VStack(alignment: .leading, spacing: 2) {
                 Text(label)
@@ -272,8 +324,12 @@ struct ContactCardView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .padding(.horizontal, 24)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.blue.opacity(0.12))
+                .shadow(color: .black.opacity(0.06), radius: 10, y: 5)
+        )
+        .padding(.horizontal, 16)
     }
 
     // MARK: - Avatar
@@ -296,7 +352,9 @@ struct ContactCardView: View {
         }
         .frame(width: 92, height: 92)
         .clipShape(Circle())
-        .overlay(Circle().strokeBorder(monogramColor.opacity(0.6), lineWidth: 3))
+        .overlay(Circle().strokeBorder(.white, lineWidth: 4))
+        .overlay(Circle().strokeBorder(monogramColor.opacity(0.6), lineWidth: 1))
+        .shadow(color: .black.opacity(0.15), radius: 10, y: 4)
     }
 
     private var monogram: some View {
