@@ -43,6 +43,7 @@ struct CardFeedView: View {
         }
     }
 
+    @ViewBuilder
     private var header: some View {
         HStack {
             Button {
