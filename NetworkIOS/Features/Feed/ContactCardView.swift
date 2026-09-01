@@ -133,10 +133,11 @@ struct ContactCardView: View {
             }
             Text(text)
                 .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(.thinMaterial, in: Capsule())
+        .background(tint.opacity(0.16), in: Capsule())
     }
 
     // MARK: - Info list (always shown, placeholders when empty — same
