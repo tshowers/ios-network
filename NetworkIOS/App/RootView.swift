@@ -19,7 +19,10 @@ struct RootView: View {
                     authService.sessionGate.markUnlocked()
                 }
             } else {
-                CardFeedView(viewModel: CardFeedViewModel(apiClient: apiClient, currentUserId: authService.userId))
+                CardFeedView(
+                    viewModel: CardFeedViewModel(apiClient: apiClient, currentUserId: authService.userId),
+                    authService: authService
+                )
             }
         }
     }

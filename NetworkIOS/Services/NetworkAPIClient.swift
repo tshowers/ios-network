@@ -54,6 +54,14 @@ final class NetworkAPIClient {
         return envelope.data
     }
 
+    func fetchStats() async throws -> NetworkStats {
+        let url = config.apiBaseURL.appending(path: "network/stats")
+        let idToken = try await authService.freshIdToken()
+        let data = try await request(method: "GET", url: url, authorization: "Bearer \(idToken)")
+        let envelope = try decoder.decode(NetworkStatsEnvelope.self, from: data)
+        return envelope.data
+    }
+
     func draftEmail(for card: ContactCard) async throws -> DraftEmailResponse {
         guard let tenantId = await authService.tenantId else { throw NetworkAPIError.notAuthenticated }
 

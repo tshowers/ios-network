@@ -29,11 +29,10 @@ struct ContactCard: Codable, Identifiable, Equatable {
         [city, state].filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
-    /// Two-letter fallback shown when `company.logoUrl` is nil — deterministic
-    /// so the same company always gets the same monogram/color.
+    /// Two-letter fallback shown when `company.logoUrl` is nil — always the
+    /// *person's* initials, never the company's (this is a person's card).
     var monogram: String {
-        let source = company.name.isEmpty ? displayName : company.name
-        let letters = source
+        let letters = displayName
             .split(separator: " ")
             .compactMap { $0.first }
             .prefix(2)

@@ -7,13 +7,15 @@ import SwiftUI
 /// the interface.
 struct CardFeedView: View {
     @StateObject var viewModel: CardFeedViewModel
+    @ObservedObject var authService: AuthService
     @State private var isShowingSearch = false
     @State private var isComposing = false
+    @State private var isShowingStatus = false
     @State private var shareItem: IdentifiableURL?
 
     var body: some View {
         ZStack {
-            Color(.systemGroupedBackground).ignoresSafeArea()
+            BackgroundVideoView().ignoresSafeArea()
 
             VStack(spacing: 0) {
                 header
@@ -53,13 +55,25 @@ struct CardFeedView: View {
         .sheet(item: $shareItem) { item in
             ActivityShareSheet(activityItems: [item.url])
         }
+        .sheet(isPresented: $isShowingStatus) {
+            NetworkStatusView(apiClient: viewModel.apiClient)
+        }
     }
 
     @ViewBuilder
     private var header: some View {
         HStack {
-            Button {
-                // Settings/menu - deferred, no admin surface in a read-only app yet.
+            Menu {
+                Button {
+                    isShowingStatus = true
+                } label: {
+                    Label("Network Status", systemImage: "gauge.medium")
+                }
+                Button(role: .destructive) {
+                    try? authService.signOut()
+                } label: {
+                    Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
+                }
             } label: {
                 Image(systemName: "line.3.horizontal")
             }
