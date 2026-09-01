@@ -39,6 +39,39 @@ struct ContactCard: Codable, Identifiable, Equatable {
             .prefix(2)
         return letters.isEmpty ? "?" : String(letters).uppercased()
     }
+
+    // MARK: - Decoding
+
+    /// Custom rather than synthesized: `[ContactCard]` decodes as one JSON
+    /// array, so one card missing a field the client expects (e.g. an app
+    /// build shipped ahead of, or behind, the deployed backend) would
+    /// otherwise fail the *entire* page, not just that card. Fields added
+    /// after the first cut of this endpoint (category/source/important/
+    /// additionalEmailCount/additionalPhoneCount) are tolerant with sensible
+    /// defaults; identity fields (contactId/firstName/lastName/displayName)
+    /// still fail loudly, since a card with no id isn't a recoverable case.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        contactId = try container.decode(String.self, forKey: .contactId)
+        firstName = try container.decode(String.self, forKey: .firstName)
+        lastName = try container.decode(String.self, forKey: .lastName)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        profession = try container.decodeIfPresent(String.self, forKey: .profession) ?? ""
+        company = try container.decodeIfPresent(CardCompany.self, forKey: .company)
+            ?? CardCompany(name: "", url: nil, logoUrl: nil)
+        city = try container.decodeIfPresent(String.self, forKey: .city) ?? ""
+        state = try container.decodeIfPresent(String.self, forKey: .state) ?? ""
+        relationship = try container.decodeIfPresent(String.self, forKey: .relationship) ?? ""
+        category = try container.decodeIfPresent(String.self, forKey: .category) ?? ""
+        source = try container.decodeIfPresent(String.self, forKey: .source) ?? ""
+        important = try container.decodeIfPresent(Bool.self, forKey: .important) ?? false
+        lastContacted = try container.decodeIfPresent(String.self, forKey: .lastContacted)
+        email = try container.decodeIfPresent(String.self, forKey: .email) ?? ""
+        additionalEmailCount = try container.decodeIfPresent(Int.self, forKey: .additionalEmailCount) ?? 0
+        phone = try container.decodeIfPresent(String.self, forKey: .phone) ?? ""
+        additionalPhoneCount = try container.decodeIfPresent(Int.self, forKey: .additionalPhoneCount) ?? 0
+        linkedInUrl = try container.decodeIfPresent(String.self, forKey: .linkedInUrl) ?? ""
+    }
 }
 
 struct CardCompany: Codable, Equatable {
