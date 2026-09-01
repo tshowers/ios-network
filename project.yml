@@ -37,6 +37,12 @@ targets:
           UIApplicationSupportsMultipleScenes: true
         NETWORK_API_BASE_URL: $(NETWORK_API_BASE_URL)
         NETWORK_API_KEY: $(NETWORK_API_KEY)
+        # Google Sign-In's OAuth redirect back into the app - value is the
+        # REVERSED_CLIENT_ID from GoogleService-Info.plist, not a secret
+        # (it's the same value that ships in the compiled app binary).
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - com.googleusercontent.apps.633736143723-9crcqbb66mtb7mh7ohp22s0706sdct4a
     entitlements:
       path: Generated/NetworkIOS.entitlements
       properties:

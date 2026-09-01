@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseCore
+import TODDAuthKit
 
 @main
 struct NetworkIOSApp: App {
@@ -18,6 +19,12 @@ struct NetworkIOSApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(authService: authService, apiClient: apiClient)
+                // Google Sign-In's OAuth flow redirects back into the app
+                // through the URL scheme registered in Info.plist; the SDK
+                // needs to see that URL to complete the sign-in it started.
+                .onOpenURL { url in
+                    _ = GoogleSignInHelper.handle(url)
+                }
         }
     }
 }

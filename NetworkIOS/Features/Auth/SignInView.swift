@@ -28,6 +28,12 @@ struct SignInView: View {
             )
             .padding(.horizontal, 32)
 
+            SignInWithGoogleButtonView(
+                onSignedIn: { errorMessage = "" },
+                onError: { errorMessage = $0.localizedDescription }
+            )
+            .padding(.horizontal, 32)
+
             if !errorMessage.isEmpty {
                 Text(errorMessage)
                     .font(.caption)
