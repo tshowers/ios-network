@@ -99,7 +99,11 @@ struct CardFeedView: View {
                     .opacity(0.6)
             }
 
-            ContactCardView(card: currentCard, insight: viewModel.insight(for: currentCard))
+            ContactCardView(
+                card: currentCard,
+                insight: viewModel.insight(for: currentCard),
+                isSelf: viewModel.isSelf(currentCard)
+            )
                 .onAppear { viewModel.loadInsightIfNeeded(for: currentCard) }
                 .offset(y: dragOffset.height)
                 .rotationEffect(.degrees(Double(dragOffset.height / 20)), anchor: .bottom)
@@ -134,23 +138,30 @@ struct CardFeedView: View {
     }
 
     private func actionBar(for card: ContactCard) -> some View {
-        HStack(spacing: 12) {
-            Button {
-                isComposing = true
-            } label: {
-                Label("Email with Maya", systemImage: "sparkles")
-                    .frame(maxWidth: .infinity)
+        let isSelf = viewModel.isSelf(card)
+
+        return HStack(spacing: 12) {
+            if !isSelf {
+                Button {
+                    isComposing = true
+                } label: {
+                    Label("Email with Maya", systemImage: "sparkles")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
 
             Button {
                 if let url = ShareCardBuilder.temporaryVCardFile(for: card) {
                     shareItem = IdentifiableURL(url: url)
                 }
             } label: {
-                Label("Share", systemImage: "square.and.arrow.up")
+                // Self's card is "here's my info" - worth the full-width
+                // treatment rather than a secondary-looking button.
+                Label(isSelf ? "Share My Card" : "Share", systemImage: "square.and.arrow.up")
+                    .frame(maxWidth: isSelf ? .infinity : nil)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(isSelf ? .borderedProminent : .bordered)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)

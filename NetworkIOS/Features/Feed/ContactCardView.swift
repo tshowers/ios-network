@@ -10,6 +10,14 @@ struct ContactCardView: View {
     /// their last conversation involved expansion plans." Loaded lazily by
     /// the parent view model; nil until it arrives (if it arrives at all).
     var insight: String?
+    /// True when `card.contactId` matches the signed-in user's own uid — TODD
+    /// creates a person's own contact record using their uid as the document
+    /// id (see `findTenantContactById(tenantId, user.uid)` in the web app's
+    /// `getTenantLoggedInContactInfo`), so this is a reliable check, not a
+    /// heuristic. Self gets a materially different layout: no relationship
+    /// badge, no "last contacted", no insight (none of that makes sense about
+    /// yourself) — instead a proper info list of what's actually on file.
+    var isSelf: Bool = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -18,9 +26,17 @@ struct ContactCardView: View {
             logoOrMonogram
 
             VStack(spacing: 6) {
-                Text(card.displayName)
-                    .font(.system(size: 30, weight: .bold))
-                    .multilineTextAlignment(.center)
+                HStack(spacing: 8) {
+                    Text(card.displayName)
+                        .font(.system(size: 30, weight: .bold))
+                        .multilineTextAlignment(.center)
+
+                    if isSelf {
+                        Text("(You)")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
 
                 if !card.profession.isEmpty {
                     Text(card.profession)
@@ -34,7 +50,7 @@ struct ContactCardView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if !card.locationLabel.isEmpty {
+                if !isSelf, !card.locationLabel.isEmpty {
                     Text(card.locationLabel)
                         .font(.subheadline)
                         .foregroundStyle(.tertiary)
@@ -42,29 +58,33 @@ struct ContactCardView: View {
             }
             .padding(.horizontal, 24)
 
-            VStack(spacing: 8) {
-                if !card.relationship.isEmpty {
-                    Label(card.relationship, systemImage: "person.crop.circle.badge")
-                        .font(.caption.weight(.semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.thinMaterial, in: Capsule())
+            if isSelf {
+                selfInfoList
+            } else {
+                VStack(spacing: 8) {
+                    if !card.relationship.isEmpty {
+                        Label(card.relationship, systemImage: "person.crop.circle.badge")
+                            .font(.caption.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(.thinMaterial, in: Capsule())
+                    }
+
+                    if let lastContactedLabel {
+                        Text(lastContactedLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
-                if let lastContactedLabel {
-                    Text(lastContactedLabel)
-                        .font(.caption)
+                if let insight, !insight.isEmpty {
+                    Text(insight)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .italic()
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
                 }
-            }
-
-            if let insight, !insight.isEmpty {
-                Text(insight)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .italic()
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
             }
 
             Spacer(minLength: 12)
@@ -75,6 +95,54 @@ struct ContactCardView: View {
                 .fill(.background)
                 .shadow(color: .black.opacity(0.12), radius: 24, y: 12)
         )
+    }
+
+    private var selfInfoList: some View {
+        VStack(spacing: 0) {
+            if !card.email.isEmpty {
+                infoRow(icon: "envelope.fill", text: card.email, url: URL(string: "mailto:\(card.email)"))
+            }
+            if !card.phone.isEmpty {
+                infoRow(icon: "phone.fill", text: card.phone, url: URL(string: "tel:\(card.phone.filter { $0.isNumber || $0 == "+" })"))
+            }
+            if !card.linkedInUrl.isEmpty {
+                infoRow(icon: "link", text: card.linkedInUrl, url: URL(string: card.linkedInUrl))
+            }
+            if !card.locationLabel.isEmpty {
+                infoRow(icon: "mappin.and.ellipse", text: card.locationLabel, url: nil)
+            }
+        }
+        .padding(.vertical, 4)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal, 24)
+    }
+
+    private func infoRow(icon: String, text: String, url: URL?) -> some View {
+        Group {
+            if let url {
+                Link(destination: url) {
+                    infoRowLabel(icon: icon, text: text)
+                }
+            } else {
+                infoRowLabel(icon: icon, text: text)
+            }
+        }
+    }
+
+    private func infoRowLabel(icon: String, text: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .frame(width: 20)
+                .foregroundStyle(.secondary)
+            Text(text)
+                .font(.subheadline)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+        }
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 
     @ViewBuilder

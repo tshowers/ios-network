@@ -13,6 +13,10 @@ final class CardFeedViewModel: ObservableObject {
     @Published private(set) var insightsByContactId: [String: String] = [:]
 
     let apiClient: NetworkAPIClient
+    /// TODD creates a person's own contact record using their uid as the
+    /// document id, so comparing this to `ContactCard.contactId` reliably
+    /// detects "this card is you" - not a heuristic.
+    let currentUserId: String?
     private var nextCursor: String?
     private var activeQuery: String?
     /// Once a search query is active, pagination via `cursor` no longer applies
@@ -20,8 +24,14 @@ final class CardFeedViewModel: ObservableObject {
     private var isSearchMode = false
     private var insightRequestsInFlight: Set<String> = []
 
-    init(apiClient: NetworkAPIClient) {
+    init(apiClient: NetworkAPIClient, currentUserId: String?) {
         self.apiClient = apiClient
+        self.currentUserId = currentUserId
+    }
+
+    func isSelf(_ card: ContactCard) -> Bool {
+        guard let currentUserId, !currentUserId.isEmpty else { return false }
+        return card.contactId == currentUserId
     }
 
     func insight(for card: ContactCard) -> String? {
@@ -29,8 +39,10 @@ final class CardFeedViewModel: ObservableObject {
     }
 
     /// Fire-and-forget; failures are silent since the insight line is a nice-to-have,
-    /// not something worth interrupting the card view for.
+    /// not something worth interrupting the card view for. Never fetched for
+    /// your own card - "good time to reconnect with yourself" isn't a thing.
     func loadInsightIfNeeded(for card: ContactCard) {
+        guard !isSelf(card) else { return }
         guard insightsByContactId[card.contactId] == nil else { return }
         guard !insightRequestsInFlight.contains(card.contactId) else { return }
         insightRequestsInFlight.insert(card.contactId)
