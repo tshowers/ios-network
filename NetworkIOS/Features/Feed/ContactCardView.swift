@@ -301,13 +301,10 @@ struct ContactCardView: View {
             )
     }
 
-    /// Deterministic color from the company/person name, so the same card
-    /// always renders the same monogram color across launches.
+    /// Fixed accent, not per-company hash - a consistent blue everywhere it's
+    /// used (monogram fill, avatar ring, card border) rather than a
+    /// semi-random hue per contact.
     private var monogramColor: Color {
-        let hash = (card.company.name.isEmpty ? card.displayName : card.company.name)
-            .unicodeScalars
-            .reduce(0) { ($0 << 5) &- $0 &+ Int($1.value) }
-        let hue = Double(abs(hash) % 360) / 360.0
-        return Color(hue: hue, saturation: 0.55, brightness: 0.72)
+        Color(red: 0.20, green: 0.47, blue: 0.93)
     }
 }
