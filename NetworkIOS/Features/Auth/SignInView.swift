@@ -9,6 +9,12 @@ struct SignInView: View {
         VStack(spacing: 16) {
             Spacer()
 
+            Image("NetworkLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 88, height: 88)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+
             Text("Network")
                 .font(.largeTitle.bold())
             Text("Sign in with your TODD account to browse your contacts.")
