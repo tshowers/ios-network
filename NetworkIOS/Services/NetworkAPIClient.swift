@@ -55,7 +55,7 @@ final class NetworkAPIClient {
     }
 
     func draftEmail(for card: ContactCard) async throws -> DraftEmailResponse {
-        guard let tenantId = authService.tenantId else { throw NetworkAPIError.notAuthenticated }
+        guard let tenantId = await authService.tenantId else { throw NetworkAPIError.notAuthenticated }
 
         let payload = DraftEmailRequest(
             tenantId: tenantId,
@@ -83,7 +83,7 @@ final class NetworkAPIClient {
     }
 
     func sendEmail(to recipient: String, subject: String, html: String) async throws {
-        guard let tenantId = authService.tenantId else { throw NetworkAPIError.notAuthenticated }
+        guard let tenantId = await authService.tenantId else { throw NetworkAPIError.notAuthenticated }
 
         let payload = SendEmailRequest(to: recipient, subject: subject, html: html, tenantId: tenantId)
         let url = config.apiBaseURL.appending(path: "send-email")
