@@ -11,6 +11,8 @@ struct PageCurlView: UIViewControllerRepresentable {
     let insight: (ContactCard) -> String?
     let isSelf: (ContactCard) -> Bool
     let onDisplay: (ContactCard) -> Void
+    let onMaya: () -> Void
+    let onShare: (ContactCard) -> Void
 
     func makeUIViewController(context: Context) -> UIPageViewController {
         let pageVC = UIPageViewController(
@@ -30,6 +32,21 @@ struct PageCurlView: UIViewControllerRepresentable {
         context.coordinator.parent = self
 
         let visibleIndex = pageVC.viewControllers?.first.flatMap(context.coordinator.index(of:))
+        // Insight is loaded after the page is initially displayed. Refresh the
+        // visible hosting controller even when the page index did not change;
+        // otherwise the page-curl container keeps the original nil insight
+        // forever.
+        if visibleIndex == currentIndex,
+           let host = pageVC.viewControllers?.first as? UIHostingController<AnyView>,
+           let card = cards[safe: currentIndex] {
+            host.rootView = AnyView(
+                ContactCardView(card: card, insight: insight(card), isSelf: isSelf(card), onMaya: onMaya, onShare: onShare)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+            )
+            host.view.setNeedsLayout()
+            return
+        }
         guard visibleIndex != currentIndex else { return }
         guard let target = context.coordinator.controller(for: currentIndex) else { return }
 
@@ -58,22 +75,17 @@ struct PageCurlView: UIViewControllerRepresentable {
             guard parent.cards.indices.contains(index) else { return nil }
             let card = parent.cards[index]
             let host = UIHostingController(
-                rootView: ContactCardView(card: card, insight: parent.insight(card), isSelf: parent.isSelf(card))
+                rootView: AnyView(ContactCardView(card: card, insight: parent.insight(card), isSelf: parent.isSelf(card), onMaya: parent.onMaya, onShare: parent.onShare)
                     .padding(.horizontal, 16)
-                    .padding(.top, 8)
+                    .padding(.top, 8))
             )
             host.view.backgroundColor = .clear
             host.view.tag = index
-            // UIPageViewController's .pageCurl transition snapshots each page
-            // for the curl animation - without an explicit frame + a forced
-            // synchronous layout pass here, that snapshot can be taken before
-            // SwiftUI finishes resolving this fresh UIHostingController's
-            // layout (it starts from zero size every time, deliberately not
-            // memoized - see the note above), which would explain simple
-            // top-of-card content appearing while nested content further down
-            // (info/stats grids) doesn't, consistently, despite the source
-            // unconditionally rendering it.
-            host.view.frame = UIScreen.main.bounds
+            // Let UIPageViewController provide the page's real bounds. A
+            // screen-sized frame is wrong on iPad split view, rotation, and
+            // inside the feed's header/action-bar layout, and can make the
+            // hosted SwiftUI view render outside the visible page.
+            host.view.translatesAutoresizingMaskIntoConstraints = true
             host.view.layoutIfNeeded()
             return host
         }
@@ -112,5 +124,11 @@ struct PageCurlView: UIViewControllerRepresentable {
                 parent.onDisplay(parent.cards[idx])
             }
         }
+    }
+}
+
+private extension Array {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

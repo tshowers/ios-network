@@ -33,9 +33,16 @@ struct CardFeedView: View {
                         onDisplay: { displayed in
                             viewModel.loadInsightIfNeeded(for: displayed)
                             Task { await viewModel.loadMoreIfNeeded() }
+                        },
+                        onMaya: { isComposing = true },
+                        onShare: { card in
+                            if let url = ShareCardBuilder.temporaryVCardFile(for: card) {
+                                shareItem = IdentifiableURL(url: url)
+                            }
                         }
                     )
-                    actionBar(for: card)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
                 } else {
                     emptyState
                 }
@@ -63,61 +70,49 @@ struct CardFeedView: View {
 
     @ViewBuilder
     private var header: some View {
-        HStack {
-            Menu {
+        VStack(spacing: 8) {
+            HStack(spacing: 14) {
+                Menu {
+                    Button {
+                        isShowingStatus = true
+                    } label: {
+                        Label("Network Status", systemImage: "gauge.medium")
+                    }
+                    Button(role: .destructive) {
+                        try? authService.signOut()
+                    } label: {
+                        Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 21, weight: .semibold))
+                        .frame(width: 44, height: 44)
+                }
+
+                Spacer(minLength: 0)
+
+                positionCounter
+
+                Spacer(minLength: 0)
+
                 Button {
-                    isShowingStatus = true
+                    withAnimation(.easeInOut(duration: 0.2)) { isShowingSearch.toggle() }
                 } label: {
-                    Label("Network Status", systemImage: "gauge.medium")
+                    Image(systemName: isShowingSearch ? "xmark" : "magnifyingglass")
+                        .font(.system(size: 21, weight: .semibold))
+                        .frame(width: 44, height: 44)
                 }
-                Button(role: .destructive) {
-                    try? authService.signOut()
-                } label: {
-                    Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
-                }
-            } label: {
-                Image(systemName: "line.3.horizontal")
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 2)
 
-            Spacer()
-
-            positionCounter
-
-            Spacer()
-
-            Menu {
-                Button {
-                    isShowingSearch.toggle()
-                } label: {
-                    Label(isShowingSearch ? "Hide Search" : "Search", systemImage: "magnifyingglass")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-            }
+            if isShowingSearch { searchBar }
         }
-        .font(.title3)
         .foregroundStyle(.white)
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, isShowingSearch ? 0 : 8)
-        .background(
-            // White icons/text need a guaranteed-dark patch under them
-            // regardless of which part of the background image ends up here
-            // (device aspect ratio varies where the wave band lands) -
-            // without this the header can go fully invisible, not just hard
-            // to read.
-            LinearGradient(
-                colors: [.black.opacity(0.35), .black.opacity(0)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 90)
-            .ignoresSafeArea(edges: .top)
-        )
+        .frame(minHeight: 50)
+        .padding(.bottom, isShowingSearch ? 8 : 0)
+        .background(Color(red: 0.02, green: 0.12, blue: 0.25).opacity(0.96))
 
-        if isShowingSearch {
-            searchBar
-        }
     }
 
     /// "N of Total" - matches the position pill in the reference design.
@@ -132,11 +127,12 @@ struct CardFeedView: View {
         .font(.subheadline.weight(.semibold))
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
-        .background(.white.opacity(0.15), in: Capsule())
+        .foregroundStyle(.white)
+        .overlay(Capsule().stroke(Color.white.opacity(0.35), lineWidth: 1))
     }
 
     private var searchBar: some View {
-        HStack {
+        HStack(spacing: 8) {
             TextField("investors in Seattle, or who should I talk to today?", text: $viewModel.searchQuery)
                 .textFieldStyle(.roundedBorder)
                 .submitLabel(.search)
@@ -144,55 +140,10 @@ struct CardFeedView: View {
 
             if !viewModel.searchQuery.isEmpty {
                 Button("Clear") { Task { await viewModel.clearSearch() } }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.blue)
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 8)
-    }
-
-    private func actionBar(for card: ContactCard) -> some View {
-        let isSelf = viewModel.isSelf(card)
-
-        return HStack(spacing: 12) {
-            if !isSelf {
-                Button {
-                    isComposing = true
-                } label: {
-                    Label("Maya", systemImage: "sparkles")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-            }
-
-            // Two near-identical branches rather than one button with a
-            // ternary style - .buttonStyle(.bordered vs .borderedProminent)
-            // are different concrete types, which a ternary can't unify.
-            // Self gets the prominent style since Share is its only action.
-            if isSelf {
-                Button {
-                    if let url = ShareCardBuilder.temporaryVCardFile(for: card) {
-                        shareItem = IdentifiableURL(url: url)
-                    }
-                } label: {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-            } else {
-                Button {
-                    if let url = ShareCardBuilder.temporaryVCardFile(for: card) {
-                        shareItem = IdentifiableURL(url: url)
-                    }
-                } label: {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
     }
 
     private var emptyState: some View {

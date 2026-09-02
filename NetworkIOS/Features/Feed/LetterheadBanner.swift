@@ -19,6 +19,10 @@ struct LetterheadBanner: View {
             Image(backgroundImageName)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
+                // The source artwork has an unwanted dark mark at its very
+                // top. Crop above it and use the clean wave band for the
+                // company header.
+                .offset(y: -150)
                 .frame(maxWidth: .infinity, maxHeight: 150, alignment: .top)
                 .clipped()
 

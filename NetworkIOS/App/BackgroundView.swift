@@ -7,15 +7,17 @@ import SwiftUI
 /// source images are framed for each aspect ratio, not one stretched image.
 struct BackgroundView: View {
     var body: some View {
-        Image(UIDevice.current.userInterfaceIdiom == .pad ? "iPadBackground" : "iPhoneBackground")
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            // Anchored `.top`, not centered: the wave pattern is concentrated
-            // near the top of the source image, and the header's white icons
-            // need to reliably land on it - a center crop could put the
-            // header over a plain white slice instead, depending on the
-            // device's aspect ratio, making the icons invisible.
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .clipped()
+        // The contact page is transparent. Keep one deliberate app-level
+        // background behind it instead of using the portrait artwork as a
+        // full-screen image; that asset contains a dark photographic mark at
+        // its top which does not belong in the card design.
+        LinearGradient(
+            colors: [
+                Color(red: 0.02, green: 0.12, blue: 0.25),
+                Color(red: 0.04, green: 0.24, blue: 0.48)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
 }

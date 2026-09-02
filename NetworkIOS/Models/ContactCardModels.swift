@@ -6,6 +6,7 @@ import Foundation
 struct ContactCard: Codable, Identifiable, Equatable {
     let contactId: String
     let firstName: String
+    let middleName: String
     let lastName: String
     let displayName: String
     let profession: String
@@ -26,6 +27,15 @@ struct ContactCard: Codable, Identifiable, Equatable {
     /// immediately if present so the insight card doesn't sit empty waiting
     /// on a live `/contact-insight` call (see `CardFeedViewModel.loadInsightIfNeeded`).
     let storedInsight: String
+    let socialMedia: [CardSocial]
+    let timezone: String
+    let gender: String
+    let sector: String
+    let contactValue: Int
+    let engagementsCount: Int
+    let interactionsCount: Int
+    let mutualConnections: Int
+    let companyCapabilities: [String]
 
     var id: String { contactId }
 
@@ -57,6 +67,7 @@ struct ContactCard: Codable, Identifiable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         contactId = try container.decode(String.self, forKey: .contactId)
         firstName = try container.decode(String.self, forKey: .firstName)
+        middleName = try container.decodeIfPresent(String.self, forKey: .middleName) ?? ""
         lastName = try container.decode(String.self, forKey: .lastName)
         displayName = try container.decode(String.self, forKey: .displayName)
         profession = try container.decodeIfPresent(String.self, forKey: .profession) ?? ""
@@ -75,6 +86,15 @@ struct ContactCard: Codable, Identifiable, Equatable {
         additionalPhoneCount = try container.decodeIfPresent(Int.self, forKey: .additionalPhoneCount) ?? 0
         linkedInUrl = try container.decodeIfPresent(String.self, forKey: .linkedInUrl) ?? ""
         storedInsight = try container.decodeIfPresent(String.self, forKey: .storedInsight) ?? ""
+        socialMedia = try container.decodeIfPresent([CardSocial].self, forKey: .socialMedia) ?? []
+        timezone = try container.decodeIfPresent(String.self, forKey: .timezone) ?? ""
+        gender = try container.decodeIfPresent(String.self, forKey: .gender) ?? ""
+        sector = try container.decodeIfPresent(String.self, forKey: .sector) ?? ""
+        contactValue = try container.decodeIfPresent(Int.self, forKey: .contactValue) ?? 0
+        engagementsCount = try container.decodeIfPresent(Int.self, forKey: .engagementsCount) ?? 0
+        interactionsCount = try container.decodeIfPresent(Int.self, forKey: .interactionsCount) ?? 0
+        mutualConnections = try container.decodeIfPresent(Int.self, forKey: .mutualConnections) ?? 0
+        companyCapabilities = try container.decodeIfPresent([String].self, forKey: .companyCapabilities) ?? []
     }
 }
 
@@ -82,6 +102,14 @@ struct CardCompany: Codable, Equatable {
     let name: String
     let url: String?
     let logoUrl: String?
+}
+
+struct CardSocial: Codable, Equatable, Identifiable {
+    let platform: String
+    let url: String
+    let username: String?
+
+    var id: String { "\(platform)-\(url)" }
 }
 
 struct ContactCardPage: Codable {
