@@ -144,6 +144,22 @@ final class NetworkAPIClient {
         )
     }
 
+    /// Sends a StoreKit transaction's signed JWS right after a purchase or
+    /// restore. The backend verifies Apple's signature, records it for this
+    /// tenant, and returns the fresh entitlement - an immediate unlock that
+    /// doesn't depend on Apple's server notification arriving.
+    func submitAppStoreTransaction(signedTransaction: String) async throws -> AppStoreEntitlement {
+        let url = config.apiBaseURL.appending(path: "app-store/transactions/network")
+        let idToken = try await authService.freshIdToken()
+        let data = try await request(
+            method: "POST",
+            url: url,
+            authorization: "Bearer \(idToken)",
+            body: try encoder.encode(AppStoreTransactionRequest(signedTransaction: signedTransaction))
+        )
+        return try decoder.decode(AppStoreEntitlementEnvelope.self, from: data).entitlement
+    }
+
     func fetchAppStoreEntitlement() async throws -> AppStoreEntitlement {
         let url = config.apiBaseURL.appending(path: "app-store/entitlement/network")
         let idToken = try await authService.freshIdToken()

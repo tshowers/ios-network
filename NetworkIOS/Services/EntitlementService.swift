@@ -34,12 +34,12 @@ final class EntitlementService: ObservableObject {
         self.config = config
         self.lastSeenUserId = authService.userId
 
-        transactionObserverTask = TransactionObserver.start { [weak self] _ in
+        transactionObserverTask = TransactionObserver.startSigned { [weak self] signed in
             // A transaction updated outside an explicit purchase() call on this
-            // device (background renewal, Ask to Buy, another device) - the
-            // backend learns the real state from Apple's own Server
-            // Notification independently, so all this needs to do is refresh
-            // what this device currently believes.
+            // device (background renewal, Ask to Buy, another device). Forward
+            // it so the backend doesn't depend on Apple's notification alone,
+            // then refresh what this device believes.
+            await self?.submit(signed)
             await self?.refreshEntitlement()
         }
 
@@ -92,6 +92,13 @@ final class EntitlementService: ObservableObject {
 
         do {
             isEntitled = try await apiClient.fetchAppStoreEntitlement().active
+            if !isEntitled {
+                // The backend may not know about a purchase this Apple ID
+                // already made (Apple's notification never arrived, or it
+                // was bought before a reinstall) - hand it any active
+                // subscriptions StoreKit has, then trust its answer.
+                isEntitled = await syncCurrentEntitlements()
+            }
         } catch {
             // Network hiccup fetching entitlement shouldn't read as "not
             // entitled" and boot a paying subscriber to the paywall - leave
@@ -111,8 +118,14 @@ final class EntitlementService: ObservableObject {
             // Link before purchasing - see the doc comment on
             // NetworkAPIClient.linkAppStorePurchase for why the order matters.
             try await apiClient.linkAppStorePurchase(appAccountToken: token.uuidString)
-            try await PurchaseManager.purchase(product, appAccountToken: token)
-            await refreshEntitlement()
+            let signed = try await PurchaseManager.purchaseSigned(product, appAccountToken: token)
+            // Unlock from the backend's verification of this exact purchase,
+            // rather than waiting on Apple's server notification.
+            if let entitlement = await submit(signed), entitlement.active {
+                isEntitled = true
+            } else {
+                await refreshEntitlement()
+            }
         } catch PurchaseError.userCancelled {
             // Not an error worth surfacing.
         } catch {
@@ -127,10 +140,31 @@ final class EntitlementService: ObservableObject {
 
         do {
             try await PurchaseManager.restorePurchases()
-            await refreshEntitlement()
+            isEntitled = await syncCurrentEntitlements()
+            if !isEntitled { await refreshEntitlement() }
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    /// Sends a signed transaction to the backend for verification. Returns
+    /// the resulting entitlement, or nil if it couldn't be recorded (e.g. it
+    /// belongs to a different TODD account - the backend rejects that).
+    @discardableResult
+    private func submit(_ signed: SignedTransaction) async -> AppStoreEntitlement? {
+        try? await apiClient.submitAppStoreTransaction(signedTransaction: signed.jwsRepresentation)
+    }
+
+    /// Submits every active subscription StoreKit has for this Apple ID;
+    /// true if any of them left this tenant entitled.
+    private func syncCurrentEntitlements() async -> Bool {
+        var entitled = false
+        for signed in await PurchaseManager.currentSignedEntitlements(productIds: configuredProductIds) {
+            if let entitlement = await submit(signed), entitlement.active {
+                entitled = true
+            }
+        }
+        return entitled
     }
 
     /// One stable appAccountToken per signed-in TODD user, reused across

@@ -7,6 +7,12 @@ struct AppStoreLinkRequest: Encodable {
     let productKey: String
 }
 
+/// Body for `POST /api/app-store/transactions/network` - a StoreKit
+/// transaction's signed JWS, re-verified server-side.
+struct AppStoreTransactionRequest: Encodable {
+    let signedTransaction: String
+}
+
 struct AppStoreEntitlementRecord: Codable {
     let productId: String
     let originalTransactionId: String
