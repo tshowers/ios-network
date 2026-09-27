@@ -54,6 +54,13 @@ final class NetworkAPIClient {
         return envelope.data
     }
 
+    func fetchGettingStarted() async throws -> GettingStarted {
+        let url = config.apiBaseURL.appending(path: "network/getting-started")
+        let idToken = try await authService.freshIdToken()
+        let data = try await request(method: "GET", url: url, authorization: "Bearer \(idToken)")
+        return try decoder.decode(GettingStartedEnvelope.self, from: data).data
+    }
+
     func fetchStats() async throws -> NetworkStats {
         let url = config.apiBaseURL.appending(path: "network/stats")
         let idToken = try await authService.freshIdToken()

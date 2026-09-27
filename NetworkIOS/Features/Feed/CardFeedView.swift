@@ -13,6 +13,9 @@ struct CardFeedView: View {
     @State private var isShowingSearch = false
     @State private var isShowingStatus = false
     @State private var isShowingProfile = false
+    @State private var isShowingGettingStarted = false
+    /// Auto-show the Getting Started checklist at most once per launch.
+    private static var didAutoShowGettingStarted = false
     @State private var isShowingLogoutConfirmation = false
     @State private var isShowingCreateWarning = false
     @State private var shareItem: IdentifiableURL?
@@ -49,6 +52,13 @@ struct CardFeedView: View {
                 }
                 .navigationDestination(isPresented: $isShowingProfile) {
                     profileView
+                }
+                .navigationDestination(isPresented: $isShowingGettingStarted) {
+                    GettingStartedView(
+                        apiClient: viewModel.apiClient,
+                        profileView: { AnyView(profileView) },
+                        onOpenWeb: { path in openWebHandoff(path: path, host: Self.networkHost) }
+                    )
                 }
         }
     }
@@ -96,6 +106,7 @@ struct CardFeedView: View {
         .task {
             await viewModel.loadInitial()
             viewModel.loadTotalContactsIfNeeded()
+            await autoShowGettingStartedIfNeeded()
             if let card = viewModel.currentCard {
                 viewModel.loadInsightIfNeeded(for: card)
             }
@@ -124,6 +135,16 @@ struct CardFeedView: View {
         } message: {
             Text(webHandoffErrorMessage ?? "")
         }
+    }
+
+    /// After sign-in/unlock, open the Getting Started checklist once per
+    /// launch while steps remain - unless the user switched it off there.
+    private func autoShowGettingStartedIfNeeded() async {
+        guard !Self.didAutoShowGettingStarted else { return }
+        let showAtStartup = UserDefaults.standard.object(forKey: GettingStartedView.showAtStartupKey) as? Bool ?? true
+        guard showAtStartup, let progress = try? await viewModel.apiClient.fetchGettingStarted(), !progress.allDone else { return }
+        Self.didAutoShowGettingStarted = true
+        isShowingGettingStarted = true
     }
 
     /// The shared in-app profile screen (TODDProfileKit), replacing the old
@@ -182,6 +203,11 @@ struct CardFeedView: View {
                         .disabled(isOpeningWebHandoff)
                     }
                     Divider()
+                    Button {
+                        isShowingGettingStarted = true
+                    } label: {
+                        Label("Getting Started", systemImage: "checklist")
+                    }
                     Button {
                         isShowingProfile = true
                     } label: {

@@ -94,6 +94,17 @@ struct ContactCardView: View {
                 .foregroundStyle(ink)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
+            if isSelf {
+                // Same cue TODD's contact list gives with "(You)" - this card
+                // is the signed-in user's own record.
+                Label("This is you", systemImage: "person.fill.checkmark")
+                    .font(.caption.weight(.bold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .foregroundStyle(.white)
+                    .background(Color(red: 0.17, green: 0.60, blue: 0.88), in: Capsule())
+                    .accessibilityLabel("This is your own contact card")
+            }
             if !card.profession.isEmpty {
                 Text(card.profession)
                     .font(.system(size: 17, weight: .medium))
