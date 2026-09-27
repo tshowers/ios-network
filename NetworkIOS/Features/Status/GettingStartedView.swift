@@ -107,7 +107,9 @@ struct GettingStartedView: View {
             Button { onOpenWeb("/contact-import") } label: { row }
                 .buttonStyle(.plain)
         case "stages":
-            Button { onOpenWeb("/contact-list") } label: { row }
+            // Opens the list in Set stage mode: a hint, unstaged contacts
+            // first, and a tap-to-pick stage on every row.
+            Button { onOpenWeb("/contact-list?setStage=1") } label: { row }
                 .buttonStyle(.plain)
         default:
             // Reach out: back to the cards to pick someone.
