@@ -7,7 +7,19 @@ import TODDAuthKit
 struct RootView: View {
     @ObservedObject var authService: AuthService
     @ObservedObject var entitlementService: EntitlementService
+    /// Observed directly (as pulse-ios does): `sessionGate` is its own
+    /// ObservableObject, so observing only `authService` never redraws this
+    /// view when Face ID succeeds - the lock screen stayed up after the
+    /// green checkmark.
+    @ObservedObject private var sessionGate: SessionUnlockGate
     let apiClient: NetworkAPIClient
+
+    init(authService: AuthService, entitlementService: EntitlementService, apiClient: NetworkAPIClient) {
+        self.authService = authService
+        self.entitlementService = entitlementService
+        self.sessionGate = authService.sessionGate
+        self.apiClient = apiClient
+    }
 
     var body: some View {
         Group {
@@ -18,9 +30,9 @@ struct RootView: View {
                 // ending in sign-in; returning users skip to SignInView
                 // from inside it.
                 OnboardingWizardView(authService: authService)
-            } else if !authService.sessionGate.isUnlocked {
+            } else if !sessionGate.isUnlocked {
                 BiometricLockView(reason: "Unlock Network to view your contacts.") {
-                    authService.sessionGate.markUnlocked()
+                    sessionGate.markUnlocked()
                 }
             } else if entitlementService.isLoadingEntitlement {
                 ProgressView()
