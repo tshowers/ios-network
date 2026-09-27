@@ -1,119 +1,171 @@
 import SwiftUI
 
-/// Read-only summary of the tenant's whole contact book - the mobile
-/// counterpart to `contact/home.component.ts`'s dashboard, minus the email
-/// campaign metrics (a different, non-Network domain) and minus anything
-/// backed by data this app never asked the backend for (documents,
-/// opportunities, notes/ratings/alerts). Tiles, not lists or copy, per the
-/// same "gauge/LED cockpit" language the rest of TODD's app homes moved to.
+/// Adaptive dashboard for the Network home/status experience. This view is
+/// independent of the fixed contact-page composition and may scroll on iPad.
 struct NetworkStatusView: View {
     @StateObject private var viewModel: NetworkStatusViewModel
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     init(apiClient: NetworkAPIClient) {
         _viewModel = StateObject(wrappedValue: NetworkStatusViewModel(apiClient: apiClient))
     }
 
-    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
-
     var body: some View {
-        NavigationStack {
-            ZStack {
-                BackgroundView().ignoresSafeArea()
-                Color.black.opacity(0.35).ignoresSafeArea()
+        GeometryReader { geometry in
+            let theme = NetworkTheme(colorScheme: colorScheme)
+            let columnCount = geometry.size.width > 900 ? 4 : 2
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 14), count: columnCount)
 
-                ScrollView {
-                    if let stats = viewModel.stats {
-                        content(for: stats)
-                    } else if viewModel.isLoading {
-                        ProgressView().tint(.white).padding(.top, 80)
-                    } else if !viewModel.errorMessage.isEmpty {
-                        Text(viewModel.errorMessage)
-                            .foregroundStyle(.white.opacity(0.8))
-                            .padding(.top, 80)
-                    }
+            ScrollView {
+                if let stats = viewModel.stats {
+                    dashboard(stats, columns: columns, theme: theme)
+                } else if viewModel.isLoading {
+                    ProgressView().tint(theme.primaryText).padding(.top, 80)
+                } else {
+                    Text(viewModel.errorMessage)
+                        .foregroundStyle(theme.primaryText)
+                        .padding(.top, 80)
                 }
             }
-            .navigationTitle("Network Status")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(BackgroundView().ignoresSafeArea())
         }
+        .navigationTitle("Network Status")
+        .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.load() }
-        .preferredColorScheme(.dark)
     }
 
-    private func content(for stats: NetworkStats) -> some View {
-        VStack(spacing: 16) {
-            LazyVGrid(columns: columns, spacing: 16) {
-                tile(icon: "person.2.fill", value: "\(stats.totalContacts)", label: "Total Contacts", accent: .blue)
-                tile(icon: "sparkles", value: "\(stats.contactsAddedToday)", label: "Added Today", accent: .green)
-                tile(icon: "star.fill", value: "\(stats.importantContacts)", label: "Important", accent: .yellow)
-                tile(icon: "gift.fill", value: "\(stats.birthdaysThisMonth)", label: "Birthdays This Month", accent: .pink)
-                tile(icon: "clock.badge.exclamationmark", value: "\(stats.contactsNeedingFollowUp)", label: "Needs Follow-Up", accent: .orange)
-                tile(icon: "exclamationmark.triangle.fill", value: "\(stats.staleContacts)", label: "Stale (60+ Days)", accent: .red)
-                tile(icon: "envelope.fill", value: "\(stats.contactsWithEmails)", label: "With Email", accent: .blue)
-                tile(icon: "link", value: "\(stats.contactsWithLinkedIn)", label: "With LinkedIn", accent: .blue)
+    private func dashboard(_ stats: NetworkStats, columns: [GridItem], theme: NetworkTheme) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            commandDeck(stats, theme: theme)
+
+            panel("Business Health", theme: theme) {
+                LazyVGrid(columns: columns, spacing: 14) {
+                    healthTile("person.2.fill", "Relationship Health", relationshipHealth(stats), "\(stats.contactsNeedingFollowUp) need attention", .red, theme)
+                    healthTile("doc.text.magnifyingglass", "Data Readiness", percentage(stats.contactsWithEmails, stats.totalContacts), "\(max(0, stats.totalContacts - stats.contactsWithEmails)) need enrichment", .orange, theme)
+                    healthTile("antenna.radiowaves.left.and.right", "Reachability", percentage(stats.contactsWithEmails, stats.totalContacts), "\(stats.contactsWithEmails) with email", .green, theme)
+                    healthTile("arrow.up.right", "Relief Progress", percentage(stats.contactsWithLinkedIn, stats.totalContacts), "\(stats.contactsWithLinkedIn) with LinkedIn", .blue, theme)
+                }
+            }
+
+            panel("Care Cycle", theme: theme) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Symptom, treatment, relief, and proof")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(theme.primaryText)
+                    Text("Each signal shows what is happening across the relationship network and where TODD can help next.")
+                        .font(.subheadline)
+                        .foregroundStyle(theme.secondaryText)
+                    diagnosisRow("Relationships need attention", value: stats.contactsNeedingFollowUp, detail: "contacts have not been contacted recently", tone: .orange, theme: theme)
+                    diagnosisRow("Contact information is incomplete", value: max(0, stats.totalContacts - stats.contactsWithEmails), detail: "records do not currently have an email path", tone: .red, theme: theme)
+                    diagnosisRow("Important relationships", value: stats.importantContacts, detail: "contacts are marked important", tone: .yellow, theme: theme)
+                    diagnosisRow("Recent additions", value: stats.contactsAddedToday, detail: "contacts were added today", tone: .green, theme: theme)
+                }
             }
 
             if !stats.contactsByStatus.isEmpty {
-                statusBreakdown(stats.contactsByStatus)
+                panel("By Relationship Status", theme: theme) {
+                    let sorted = stats.contactsByStatus.sorted { $0.value > $1.value }
+                    VStack(spacing: 0) {
+                        ForEach(sorted, id: \.key) { status, count in
+                            HStack {
+                                Circle().fill(.blue).frame(width: 7, height: 7)
+                                Text(status.isEmpty ? "Unassigned" : status)
+                                Spacer()
+                                Text("\(count)")
+                            }
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(theme.primaryText)
+                            .padding(.vertical, 10)
+                            if status != sorted.last?.key {
+                                Divider().overlay(theme.border)
+                            }
+                        }
+                    }
+                }
             }
         }
         .padding(20)
     }
 
-    private func tile(icon: String, value: String, label: String, accent: Color) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundStyle(accent)
-                Spacer()
-                Circle().fill(accent).frame(width: 8, height: 8)
+    private func commandDeck(_ stats: NetworkStats, theme: NetworkTheme) -> some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text("TODD COMMAND DECK")
+                    .font(.caption.weight(.bold))
+                    .tracking(2)
+                    .foregroundStyle(.blue)
+                Label("Relationships", systemImage: "point.3.connected.trianglepath.dotted")
+                    .font(.largeTitle.weight(.bold))
+                    .foregroundStyle(theme.primaryText)
+                Text("Diagnose relationship pain, watch TODD treat it, and see which contacts are moving back toward momentum.")
+                    .font(.subheadline)
+                    .foregroundStyle(theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            Text(value)
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.7))
+            Spacer(minLength: 20)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("NETWORK HEALTH")
+                    .font(.caption.weight(.bold))
+                    .tracking(1.5)
+                    .foregroundStyle(theme.secondaryText)
+                Text("\(relationshipHealth(stats))%")
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .foregroundStyle(theme.primaryText)
+            }
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
-        )
+        .padding(22)
+        .background(theme.panelStrong, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(theme.border, lineWidth: 1))
     }
 
-    private func statusBreakdown(_ byStatus: [String: Int]) -> some View {
-        let sorted = byStatus.sorted { $0.value > $1.value }
-        return VStack(alignment: .leading, spacing: 12) {
-            Text("By Relationship Status")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.7))
-
-            VStack(spacing: 0) {
-                ForEach(sorted, id: \.key) { status, count in
-                    HStack {
-                        Circle().fill(.blue).frame(width: 6, height: 6)
-                        Text(status).foregroundStyle(.white)
-                        Spacer()
-                        Text("\(count)").foregroundStyle(.white.opacity(0.7))
-                    }
-                    .padding(.vertical, 10)
-                    if status != sorted.last?.key {
-                        Divider().overlay(.white.opacity(0.1))
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    private func panel<Content: View>(_ title: String, theme: NetworkTheme, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title.uppercased())
+                .font(.caption.weight(.bold))
+                .tracking(1.5)
+                .foregroundStyle(theme.secondaryText)
+            content()
         }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.panel, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(theme.border, lineWidth: 1))
+    }
+
+    private func healthTile(_ icon: String, _ title: String, _ value: Int, _ detail: String, _ accent: Color, _ theme: NetworkTheme) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Image(systemName: icon).font(.title3).foregroundStyle(accent)
+            Text("\(value)%").font(.system(size: 28, weight: .bold, design: .rounded)).foregroundStyle(theme.primaryText)
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(theme.primaryText)
+            Text(detail).font(.caption).foregroundStyle(theme.secondaryText).fixedSize(horizontal: false, vertical: true)
+            ProgressView(value: Double(value), total: 100).tint(accent)
+        }
+        .padding(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.panelStrong, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(theme.border, lineWidth: 1))
+    }
+
+    private func diagnosisRow(_ title: String, value: Int, detail: String, tone: Color, theme: NetworkTheme) -> some View {
+        HStack(spacing: 14) {
+            Circle().fill(tone).frame(width: 14, height: 14).shadow(color: tone.opacity(0.55), radius: 6)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.headline).foregroundStyle(theme.primaryText)
+                Text("\(value) \(detail)").font(.subheadline).foregroundStyle(theme.secondaryText)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(theme.panelStrong, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func percentage(_ value: Int, _ total: Int) -> Int {
+        guard total > 0 else { return 0 }
+        return min(100, max(0, Int((Double(value) / Double(total) * 100).rounded())))
+    }
+
+    private func relationshipHealth(_ stats: NetworkStats) -> Int {
+        percentage(max(0, stats.totalContacts - stats.contactsNeedingFollowUp), stats.totalContacts)
     }
 }

@@ -1,4 +1,6 @@
 import SwiftUI
+import TODDAuthKit
+import TODDProfileKit
 
 /// The main screen: a real `UIPageViewController` page curl (`PageCurlView`),
 /// not a hand-rolled gesture stack — the "turning a page in a premium
@@ -9,11 +11,49 @@ struct CardFeedView: View {
     @StateObject var viewModel: CardFeedViewModel
     @ObservedObject var authService: AuthService
     @State private var isShowingSearch = false
-    @State private var isComposing = false
     @State private var isShowingStatus = false
+    @State private var isShowingProfile = false
+    @State private var isShowingLogoutConfirmation = false
+    @State private var isShowingCreateWarning = false
     @State private var shareItem: IdentifiableURL?
+    @State private var isOpeningWebHandoff = false
+    @State private var webHandoffErrorMessage: String?
+
+    private static let networkHost = URL(string: "https://network.taliferro.tech")!
+    private static let toddHost = URL(string: "https://todd.taliferro.tech")!
+
+    /// Destinations reachable from the account menu via the shared
+    /// `TODDAuthKit.WebHandoff` real-token handoff - opens already signed
+    /// in, no second login. Mirrors outreach-ios's/docs-ios's account menu.
+    /// Profile isn't here - it's in-app (TODDProfileKit's ProfileView).
+    private static let webHandoffMenuItems: [(title: String, icon: String, path: String, host: URL)] = [
+        (title: "Home", icon: "house", path: "/", host: networkHost),
+        (title: "Relationships", icon: "point.3.connected.trianglepath.dotted", path: "/app", host: networkHost),
+        (title: "Contacts", icon: "person.crop.rectangle.stack", path: "/contact-list", host: networkHost),
+        (title: "Add", icon: "person.crop.circle.badge.plus", path: "/contact-edit", host: networkHost),
+        (title: "Import", icon: "square.and.arrow.down", path: "/contact-import", host: networkHost),
+        (title: "Pipeline", icon: "chart.bar.xaxis", path: "/contact-deal-flow", host: networkHost),
+        (title: "Daily Momentum", icon: "flame", path: "/daily-momentum", host: toddHost),
+    ]
 
     var body: some View {
+        // A NavigationStack so Network Status pushes as a regular page (with
+        // a back button) rather than a sheet - the other apps don't use
+        // popups. The feed keeps its own custom header, so the system bar
+        // stays hidden here.
+        NavigationStack {
+            feed
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(isPresented: $isShowingStatus) {
+                    NetworkStatusView(apiClient: viewModel.apiClient)
+                }
+                .navigationDestination(isPresented: $isShowingProfile) {
+                    profileView
+                }
+        }
+    }
+
+    private var feed: some View {
         ZStack {
             BackgroundView().ignoresSafeArea()
 
@@ -34,7 +74,12 @@ struct CardFeedView: View {
                             viewModel.loadInsightIfNeeded(for: displayed)
                             Task { await viewModel.loadMoreIfNeeded() }
                         },
-                        onMaya: { isComposing = true },
+                        // Maya button removed for now (was opening an
+                        // in-app "Compose with Maya" email-draft sheet, not
+                        // the actual Maya app) - reported/requested 2026-09-21.
+                        // Reintroduce later as a deep link into maya-ios
+                        // instead, once that's wired up.
+                        onMaya: nil,
                         onShare: { card in
                             if let url = ShareCardBuilder.temporaryVCardFile(for: card) {
                                 shareItem = IdentifiableURL(url: url)
@@ -55,16 +100,71 @@ struct CardFeedView: View {
                 viewModel.loadInsightIfNeeded(for: card)
             }
         }
-        .sheet(isPresented: $isComposing) {
-            if let card = viewModel.currentCard {
-                ComposeWithMayaView(viewModel: ComposeWithMayaViewModel(card: card, apiClient: viewModel.apiClient))
-            }
-        }
         .sheet(item: $shareItem) { item in
             ActivityShareSheet(activityItems: [item.url])
         }
-        .sheet(isPresented: $isShowingStatus) {
-            NetworkStatusView(apiClient: viewModel.apiClient)
+        .alert("Log out of Network?", isPresented: $isShowingLogoutConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Log Out", role: .destructive) {
+                try? authService.signOut()
+            }
+        } message: {
+            Text("You can sign in again with your TODD account.")
+        }
+        .alert("You'll leave Network", isPresented: $isShowingCreateWarning) {
+            Button("Cancel", role: .cancel) { }
+            Button("Continue") {
+                openWebHandoff(path: "/contact-edit", host: Self.networkHost)
+            }
+        } message: {
+            Text("Adding a new contact opens network.taliferro.tech in your browser, already signed in. You'll leave the app to do this.")
+        }
+        .alert("Couldn't open that page", isPresented: .constant(webHandoffErrorMessage != nil)) {
+            Button("OK") { webHandoffErrorMessage = nil }
+        } message: {
+            Text(webHandoffErrorMessage ?? "")
+        }
+    }
+
+    /// The shared in-app profile screen (TODDProfileKit), replacing the old
+    /// web handoff to todd.taliferro.tech/user-profile. Also where the
+    /// App Store-required "Delete account" lives.
+    private var profileView: some View {
+        let authService = self.authService
+        return ProfileView(
+            api: ProfileAPI(
+                baseURL: AppConfig.fromBundle().apiBaseURL,
+                idToken: { try await authService.freshIdToken() }
+            ),
+            appName: "Network",
+            accent: Color(red: 0.07, green: 0.24, blue: 0.55),
+            onOpenWebSettings: { openWebHandoff(path: "/update-profile", host: Self.toddHost) },
+            onAccountDeleted: {
+                OnboardingProfileDraft.clear()
+                try? authService.signOut()
+            }
+        ) {
+            BackgroundView()
+        }
+    }
+
+    /// Opens a web page already signed in via the shared
+    /// `TODDAuthKit.WebHandoff` real-token handoff - no second login.
+    private func openWebHandoff(path: String, host: URL) {
+        isOpeningWebHandoff = true
+        Task {
+            defer { isOpeningWebHandoff = false }
+            do {
+                let idToken = try await authService.freshIdToken()
+                try await WebHandoff.open(
+                    path: path,
+                    idToken: idToken,
+                    apiBaseURL: AppConfig.fromBundle().apiBaseURL,
+                    webBaseURL: host
+                )
+            } catch {
+                webHandoffErrorMessage = "Please try again in a moment."
+            }
         }
     }
 
@@ -73,21 +173,37 @@ struct CardFeedView: View {
         VStack(spacing: 8) {
             HStack(spacing: 14) {
                 Menu {
+                    ForEach(Self.webHandoffMenuItems, id: \.title) { item in
+                        Button {
+                            openWebHandoff(path: item.path, host: item.host)
+                        } label: {
+                            Label(item.title, systemImage: item.icon)
+                        }
+                        .disabled(isOpeningWebHandoff)
+                    }
+                    Divider()
+                    Button {
+                        isShowingProfile = true
+                    } label: {
+                        Label("Profile", systemImage: "person.crop.circle")
+                    }
                     Button {
                         isShowingStatus = true
                     } label: {
                         Label("Network Status", systemImage: "gauge.medium")
                     }
-                    Button(role: .destructive) {
-                        try? authService.signOut()
+                    Button {
+                        isShowingLogoutConfirmation = true
                     } label: {
                         Label("Log Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                 } label: {
-                    Image(systemName: "line.3.horizontal")
+                    Label("Account", systemImage: "person.crop.circle")
+                        .labelStyle(.iconOnly)
                         .font(.system(size: 21, weight: .semibold))
                         .frame(width: 44, height: 44)
                 }
+                .accessibilityLabel("Account menu")
 
                 Spacer(minLength: 0)
 
@@ -102,6 +218,16 @@ struct CardFeedView: View {
                         .font(.system(size: 21, weight: .semibold))
                         .frame(width: 44, height: 44)
                 }
+
+                Button {
+                    isShowingCreateWarning = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 21, weight: .semibold))
+                        .frame(width: 44, height: 44)
+                }
+                .disabled(isOpeningWebHandoff)
+                .accessibilityLabel("Add contact")
             }
             .padding(.horizontal, 20)
             .padding(.top, 2)
@@ -157,6 +283,10 @@ struct CardFeedView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
+            if viewModel.errorMessage.isEmpty {
+                Button("Add a Contact") { isShowingCreateWarning = true }
+                    .buttonStyle(.borderedProminent)
+            }
             Spacer()
         }
     }

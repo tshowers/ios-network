@@ -6,6 +6,7 @@ import TODDAuthKit
 @main
 struct NetworkIOSApp: App {
     @StateObject private var authService = AuthService()
+    @StateObject private var entitlementService: EntitlementService
     private let apiClient: NetworkAPIClient
 
     init() {
@@ -25,15 +26,18 @@ struct NetworkIOSApp: App {
         let config = AppConfig.fromBundle()
         let authService = AuthService()
         _authService = StateObject(wrappedValue: authService)
-        self.apiClient = NetworkAPIClient(config: config, authService: authService)
+        let apiClient = NetworkAPIClient(config: config, authService: authService)
+        self.apiClient = apiClient
+        _entitlementService = StateObject(wrappedValue: EntitlementService(
+            apiClient: apiClient,
+            authService: authService,
+            config: config
+        ))
     }
 
     var body: some Scene {
         WindowGroup {
-            RootView(authService: authService, apiClient: apiClient)
-                // Google Sign-In's OAuth flow redirects back into the app
-                // through the URL scheme registered in Info.plist; the SDK
-                // needs to see that URL to complete the sign-in it started.
+            RootView(authService: authService, entitlementService: entitlementService, apiClient: apiClient)
                 .onOpenURL { url in
                     _ = GoogleSignInHelper.handle(url)
                 }

@@ -6,6 +6,7 @@ import TODDAuthKit
 /// signed out) there's no guest mode here at all.
 struct RootView: View {
     @ObservedObject var authService: AuthService
+    @ObservedObject var entitlementService: EntitlementService
     let apiClient: NetworkAPIClient
 
     var body: some View {
@@ -13,11 +14,19 @@ struct RootView: View {
             if authService.isLoading {
                 ProgressView()
             } else if authService.currentUser == nil {
-                SignInView(authService: authService)
+                // Pre-sign-in wizard (name, role, company, goals, timezone)
+                // ending in sign-in; returning users skip to SignInView
+                // from inside it.
+                OnboardingWizardView(authService: authService)
             } else if !authService.sessionGate.isUnlocked {
                 BiometricLockView(reason: "Unlock Network to view your contacts.") {
                     authService.sessionGate.markUnlocked()
                 }
+            } else if entitlementService.isLoadingEntitlement {
+                ProgressView()
+                    .task { await entitlementService.refreshEntitlement() }
+            } else if !entitlementService.isEntitled {
+                PaywallView(entitlementService: entitlementService, onSignOut: signOut)
             } else {
                 CardFeedView(
                     viewModel: CardFeedViewModel(apiClient: apiClient, currentUserId: authService.userId),
@@ -25,5 +34,9 @@ struct RootView: View {
                 )
             }
         }
+    }
+
+    private func signOut() {
+        try? authService.signOut()
     }
 }

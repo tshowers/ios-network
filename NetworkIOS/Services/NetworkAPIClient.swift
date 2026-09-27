@@ -127,6 +127,30 @@ final class NetworkAPIClient {
         return try decoder.decode(ContactInsightResponse.self, from: data).response
     }
 
+    /// Links a StoreKit purchase's appAccountToken to this signed-in tenant
+    /// BEFORE that purchase starts, per docs/app-store-exclusive-billing-plan.md's
+    /// "Native purchase-to-tenant linking" section — Apple's notification for the
+    /// resulting transaction can arrive before `purchase()` even returns, and it
+    /// only carries the token, not who this tenant is.
+    func linkAppStorePurchase(appAccountToken: String) async throws {
+        let payload = AppStoreLinkRequest(appAccountToken: appAccountToken, productKey: "network")
+        let url = config.apiBaseURL.appending(path: "app-store/link")
+        let idToken = try await authService.freshIdToken()
+        _ = try await request(
+            method: "POST",
+            url: url,
+            authorization: "Bearer \(idToken)",
+            body: try encoder.encode(payload)
+        )
+    }
+
+    func fetchAppStoreEntitlement() async throws -> AppStoreEntitlement {
+        let url = config.apiBaseURL.appending(path: "app-store/entitlement/network")
+        let idToken = try await authService.freshIdToken()
+        let data = try await request(method: "GET", url: url, authorization: "Bearer \(idToken)")
+        return try decoder.decode(AppStoreEntitlementEnvelope.self, from: data).entitlement
+    }
+
     // MARK: - Request building
 
     private func request(method: String, url: URL, authorization: String, body: Data? = nil) async throws -> Data {

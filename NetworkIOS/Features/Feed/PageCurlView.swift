@@ -11,7 +11,9 @@ struct PageCurlView: UIViewControllerRepresentable {
     let insight: (ContactCard) -> String?
     let isSelf: (ContactCard) -> Bool
     let onDisplay: (ContactCard) -> Void
-    let onMaya: () -> Void
+    // Optional: nil hides the Maya button in ContactCardView entirely,
+    // rather than just making it inert - see CardFeedView's call site.
+    let onMaya: (() -> Void)?
     let onShare: (ContactCard) -> Void
 
     func makeUIViewController(context: Context) -> UIPageViewController {
@@ -19,9 +21,13 @@ struct PageCurlView: UIViewControllerRepresentable {
             transitionStyle: .pageCurl,
             navigationOrientation: .horizontal
         )
+        // The page surface must be opaque, but it also needs a rendered back
+        // face. With this disabled, UIKit uses a blank white reverse side,
+        // which is the white sheet visible during the curl.
+        pageVC.isDoubleSided = true
         pageVC.dataSource = context.coordinator
         pageVC.delegate = context.coordinator
-        pageVC.view.backgroundColor = .clear
+        pageVC.view.backgroundColor = .systemBackground
         if let initial = context.coordinator.controller(for: currentIndex) {
             pageVC.setViewControllers([initial], direction: .forward, animated: false)
         }
@@ -79,7 +85,11 @@ struct PageCurlView: UIViewControllerRepresentable {
                     .padding(.horizontal, 16)
                     .padding(.top, 8))
             )
-            host.view.backgroundColor = .clear
+            // Keep the hosted page opaque during the curl. The SwiftUI root
+            // supplies the app gradient; this UIKit background is only a
+            // fallback for the brief moment before SwiftUI has rendered.
+            host.view.backgroundColor = .systemBackground
+            host.view.isOpaque = true
             host.view.tag = index
             // Let UIPageViewController provide the page's real bounds. A
             // screen-sized frame is wrong on iPad split view, rotation, and
@@ -123,6 +133,25 @@ struct PageCurlView: UIViewControllerRepresentable {
             if parent.cards.indices.contains(idx) {
                 parent.onDisplay(parent.cards[idx])
             }
+        }
+
+        /// Without this, `.pageCurl` style can switch into a 2-up "spread"
+        /// (2 view controllers on screen at once, like an open book) on
+        /// iPad's regular-width size class - `updateUIViewController`'s
+        /// `setViewControllers` calls only ever provide 1, which crashes
+        /// with "the number of view controllers provided (1) doesn't match
+        /// the number required (2) for the requested transition" the moment
+        /// that happens. Reported against a real iPad 2026-09-21. Forcing
+        /// `.min` here keeps this a single-page-at-a-time feed always, which
+        /// is what "flip through contact cards" actually wants.
+        func pageViewController(
+            _ pageViewController: UIPageViewController,
+            spineLocationFor orientation: UIInterfaceOrientation
+        ) -> UIPageViewController.SpineLocation {
+            if let visible = pageViewController.viewControllers?.first {
+                pageViewController.setViewControllers([visible], direction: .forward, animated: false, completion: nil)
+            }
+            return .min
         }
     }
 }

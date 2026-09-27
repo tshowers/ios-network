@@ -7,6 +7,10 @@ configs:
 settings:
   base:
     PRODUCT_BUNDLE_IDENTIFIER: tech.taliferro.networkios
+    # Real device builds need a real team for the Associated Domains
+    # capability (Universal Links) to actually provision - matches
+    # taliferro-music-native's team.
+    DEVELOPMENT_TEAM: "6377FLHLAG"
     IPHONEOS_DEPLOYMENT_TARGET: 17.0
     SWIFT_VERSION: 5.0
 packages:
@@ -15,6 +19,10 @@ packages:
     from: 10.29.0
   TODDAuthKit:
     path: ../TODDAuthKit
+  TODDEntitlementKit:
+    path: ../TODDEntitlementKit
+  TODDProfileKit:
+    path: ../TODDProfileKit
 targets:
   NetworkIOS:
     type: application
@@ -24,35 +32,73 @@ targets:
     settings:
       base:
         PRODUCT_NAME: NetworkIOS
+        # App Store version (MARKETING_VERSION) and build number
+        # (CURRENT_PROJECT_VERSION). Bump the build number for every upload
+        # to App Store Connect - it must be higher than the last one.
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         NETWORK_API_BASE_URL: https://api.taliferro.tech/api
         NETWORK_API_KEY: ""
+        # NETWORK_APP_STORE_CONTACTS_PACK_PRODUCT_ID stays empty until the
+        # Contacts Pack add-on subscription is created in App Store Connect
+        # too - EntitlementService treats empty as "not configured yet".
+        NETWORK_APP_STORE_PRODUCT_ID: TODDNetwork10001
+        NETWORK_APP_STORE_CONTACTS_PACK_PRODUCT_ID: ""
     info:
       path: Generated/Info.plist
       properties:
         CFBundleDisplayName: Network
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSRequiresIPhoneOS: true
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
+        # App Store validation rejects an iPad-capable build (device family
+        # "1,2") with no orientations; iPad multitasking requires all four.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         NETWORK_API_BASE_URL: $(NETWORK_API_BASE_URL)
         NETWORK_API_KEY: $(NETWORK_API_KEY)
-        # Google Sign-In's OAuth redirect back into the app - value is the
-        # REVERSED_CLIENT_ID from GoogleService-Info.plist, not a secret
-        # (it's the same value that ships in the compiled app binary).
+        NETWORK_APP_STORE_PRODUCT_ID: $(NETWORK_APP_STORE_PRODUCT_ID)
+        NETWORK_APP_STORE_CONTACTS_PACK_PRODUCT_ID: $(NETWORK_APP_STORE_CONTACTS_PACK_PRODUCT_ID)
+        # Native Google Sign-In's redirect callback scheme - the
+        # REVERSED_CLIENT_ID from GoogleService-Info.plist, caught by
+        # GoogleSignInHelper.handle(url) via .onOpenURL in NetworkIOSApp.swift.
+        # Sign-in went through TODDAuthKit's HostedLogin (a web page) until
+        # 2026-09-20; native Apple/Google replaced it, see
+        # docs/app-store-exclusive-billing-plan.md's "Native sign-in" section.
         CFBundleURLTypes:
           - CFBundleURLSchemes:
               - com.googleusercontent.apps.633736143723-9crcqbb66mtb7mh7ohp22s0706sdct4a
     entitlements:
-      path: Generated/NetworkIOS.entitlements
+      path: NetworkIOS.entitlements
       properties:
         com.apple.developer.applesignin:
           - Default
+        # Universal Links: lets tapping a network.taliferro.tech link
+        # (from Maya's chat, Mail, Safari, another app, etc.) open this
+        # app directly instead of Safari. Needs the AASA file at
+        # network.taliferro.tech/.well-known/apple-app-site-association
+        # to list this app's Team ID + bundle ID (Firebase Hosting
+        # auto-generates that file once the app is associated in the
+        # Firebase Console - the file exists today but is still an empty
+        # scaffold, {"applinks":{"apps":[],"details":[]}}).
+        com.apple.developer.associated-domains:
+          - applinks:network.taliferro.tech
     dependencies:
       - package: FirebaseiOS
         product: FirebaseAuth
       - package: FirebaseiOS
         product: FirebaseFirestore
       - package: TODDAuthKit
+      - package: TODDEntitlementKit
+      - package: TODDProfileKit
     scheme:
       testTargets: []

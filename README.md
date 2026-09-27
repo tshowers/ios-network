@@ -1,5 +1,9 @@
 # Network iOS
 
+<p align="center">
+  <img src="NetworkIOS/Resources/Assets.xcassets/NetworkLogo.imageset/network-logo.png" alt="Network app icon" width="160">
+</p>
+
 ![Network iOS](docs/network-banner.png)
 
 A read-only, swipeable "digital Rolodex" over TODD's Network/contacts data — one full-screen contact card at a time, swipe up for the next. No dashboard, no table, no editing. If you need to change a contact, that's still TODD on the web; this app answers "who is this, should I contact them, how do I contact them."

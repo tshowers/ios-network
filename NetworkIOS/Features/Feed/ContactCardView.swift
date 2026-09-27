@@ -9,31 +9,39 @@ struct ContactCardView: View {
     var isSelf: Bool = false
     var onMaya: (() -> Void)? = nil
     var onShare: ((ContactCard) -> Void)? = nil
+    @Environment(\.colorScheme) private var colorScheme
 
-    private let blue = Color(red: 0.05, green: 0.32, blue: 0.72)
-    private let ink = Color(red: 0.04, green: 0.10, blue: 0.20)
+    private var theme: NetworkTheme { NetworkTheme(colorScheme: colorScheme) }
+    private var blue: Color { colorScheme == .dark ? Color(red: 0.35, green: 0.70, blue: 1.0) : Color(red: 0.05, green: 0.32, blue: 0.72) }
+    private var ink: Color { theme.primaryText }
 
     var body: some View {
-        GeometryReader { geometry in
-            let designWidth: CGFloat = 430
-            let designHeight: CGFloat = 850
-            let availableWidth = min(geometry.size.width - 20, 560)
-            let availableHeight = geometry.size.height - 16
-            let scale = min(availableWidth / designWidth, availableHeight / designHeight)
+        ZStack {
+            // UIPageViewController curls the entire hosted view. Give that
+            // view an opaque app surface so translucent card panels cannot
+            // expose the previous/next card through the turning page.
+            BackgroundView()
 
-            pageComposition
-                .frame(width: designWidth, height: designHeight)
-                .scaleEffect(min(scale, UIDevice.current.userInterfaceIdiom == .pad ? 1.35 : 1.0))
-                // scaleEffect is visual only. Report the scaled dimensions
-                // to the parent so the page remains centered and cannot be
-                // clipped or pushed sideways.
-                .frame(
-                    width: designWidth * min(scale, UIDevice.current.userInterfaceIdiom == .pad ? 1.35 : 1.0),
-                    height: designHeight * min(scale, UIDevice.current.userInterfaceIdiom == .pad ? 1.35 : 1.0)
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            GeometryReader { geometry in
+                let designWidth: CGFloat = 430
+                let designHeight: CGFloat = 850
+                let availableWidth = min(geometry.size.width - 20, 560)
+                let availableHeight = geometry.size.height - 16
+                let scale = min(availableWidth / designWidth, availableHeight / designHeight)
+
+                pageComposition
+                    .frame(width: designWidth, height: designHeight)
+                    .scaleEffect(min(scale, UIDevice.current.userInterfaceIdiom == .pad ? 1.35 : 1.0))
+                    // scaleEffect is visual only. Report the scaled dimensions
+                    // to the parent so the page remains centered and cannot be
+                    // clipped or pushed sideways.
+                    .frame(
+                        width: designWidth * min(scale, UIDevice.current.userInterfaceIdiom == .pad ? 1.35 : 1.0),
+                        height: designHeight * min(scale, UIDevice.current.userInterfaceIdiom == .pad ? 1.35 : 1.0)
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            }
         }
-        .preferredColorScheme(.light)
     }
 
     /// Fixed design-space composition. It is intentionally not a ScrollView:
@@ -69,9 +77,9 @@ struct ContactCardView: View {
                 .padding(.bottom, 14)
         }
         .padding(.top, 8)
-        .background(Color(red: 0.975, green: 0.985, blue: 1))
+        .background(theme.panelStrong)
         .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).stroke(Color.white.opacity(0.9), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 30, style: .continuous).stroke(theme.border, lineWidth: 1))
         .shadow(color: .black.opacity(0.16), radius: 16, y: 8)
     }
 
@@ -116,8 +124,8 @@ struct ContactCardView: View {
             }
             .padding(.horizontal, 18)
             .padding(.bottom, 18)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Color.white.opacity(0.85), lineWidth: 1))
+            .background(theme.panelStrong, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(theme.border, lineWidth: 1))
             .padding(.horizontal, 24)
 
             avatar.offset(y: -48)
@@ -164,7 +172,7 @@ struct ContactCardView: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.72))
+                .fill(colorScheme == .dark ? Color.white.opacity(0.10) : Color.white.opacity(0.72))
         )
         .padding(.horizontal, 24)
     }
@@ -221,8 +229,8 @@ struct ContactCardView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(blue.opacity(0.10), lineWidth: 1))
+        .background(theme.panel, in: RoundedRectangle(cornerRadius: 17, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(theme.border, lineWidth: 1))
         .padding(.horizontal, 24)
     }
 
@@ -249,8 +257,11 @@ struct ContactCardView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(Color(red: 0.86, green: 0.91, blue: 0.99), in: RoundedRectangle(cornerRadius: 17, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(Color.blue.opacity(0.16), lineWidth: 1))
+        .background(
+            colorScheme == .dark ? Color(red: 0.08, green: 0.22, blue: 0.38) : Color(red: 0.86, green: 0.91, blue: 0.99),
+            in: RoundedRectangle(cornerRadius: 17, style: .continuous)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 17, style: .continuous).stroke(blue.opacity(0.24), lineWidth: 1))
         .padding(.horizontal, 24)
     }
 
@@ -268,7 +279,7 @@ struct ContactCardView: View {
                     Label("Share", systemImage: "square.and.arrow.up")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(ContactActionButtonStyle(fill: .white, foreground: ink, border: Color.black.opacity(0.14)))
+                .buttonStyle(ContactActionButtonStyle(fill: theme.panelStrong, foreground: ink, border: theme.border))
             }
         }
         .padding(.horizontal, 24)
@@ -285,7 +296,7 @@ struct ContactCardView: View {
             } else { monogram }
         }
         .frame(width: 96, height: 96)
-        .background(.white, in: Circle())
+        .background(colorScheme == .dark ? theme.panelStrong : .white, in: Circle())
         .clipShape(Circle())
         .overlay(Circle().stroke(blue.opacity(0.22), lineWidth: 3))
         .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
