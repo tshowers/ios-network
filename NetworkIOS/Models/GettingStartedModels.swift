@@ -14,6 +14,15 @@ struct GettingStarted: Decodable {
     let completedSteps: Int
     let totalSteps: Int
     let allDone: Bool
+    /// Raw totals behind the steps (NetworkAwards checks these). Optional
+    /// so an older backend without them still decodes.
+    let counts: Counts?
+
+    struct Counts: Decodable {
+        let contacts: Int
+        let staged: Int
+        let reachedOut: Int
+    }
 }
 
 struct GettingStartedEnvelope: Decodable {

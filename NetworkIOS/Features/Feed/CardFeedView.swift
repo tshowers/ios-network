@@ -1,5 +1,6 @@
 import SwiftUI
 import TODDAuthKit
+import TODDAwardsKit
 import TODDProfileKit
 
 /// The main screen: a real `UIPageViewController` page curl (`PageCurlView`),
@@ -10,10 +11,12 @@ import TODDProfileKit
 struct CardFeedView: View {
     @StateObject var viewModel: CardFeedViewModel
     @ObservedObject var authService: AuthService
+    @ObservedObject var awardsService: AwardsService
     @State private var isShowingSearch = false
     @State private var isShowingStatus = false
     @State private var isShowingProfile = false
     @State private var isShowingGettingStarted = false
+    @State private var isShowingAwards = false
     /// Auto-show the Getting Started checklist at most once per launch.
     private static var didAutoShowGettingStarted = false
     @State private var isShowingLogoutConfirmation = false
@@ -60,6 +63,15 @@ struct CardFeedView: View {
                         onOpenWeb: { path in openWebHandoff(path: path, host: Self.networkHost) }
                     )
                 }
+                .navigationDestination(isPresented: $isShowingAwards) {
+                    AwardsGridView(awardsService: awardsService)
+                        .task { await awardsService.sync() }
+                }
+                // Coming back from Getting Started (where profile/import
+                // steps get done) is when new awards are most likely.
+                .onChange(of: isShowingGettingStarted) { _, isShowing in
+                    if !isShowing { Task { await checkAwards() } }
+                }
         }
     }
 
@@ -93,6 +105,7 @@ struct CardFeedView: View {
                         onShare: { card in
                             if let url = ShareCardBuilder.temporaryVCardFile(for: card) {
                                 shareItem = IdentifiableURL(url: url)
+                                awardsService.recordCardShared()
                             }
                         }
                     )
@@ -139,12 +152,21 @@ struct CardFeedView: View {
 
     /// After sign-in/unlock, open the Getting Started checklist once per
     /// launch while steps remain - unless the user switched it off there.
+    /// Also checks awards against the same progress fetch.
     private func autoShowGettingStartedIfNeeded() async {
+        guard let progress = try? await viewModel.apiClient.fetchGettingStarted() else { return }
+        awardsService.recordProgress(progress)
         guard !Self.didAutoShowGettingStarted else { return }
         let showAtStartup = UserDefaults.standard.object(forKey: GettingStartedView.showAtStartupKey) as? Bool ?? true
-        guard showAtStartup, let progress = try? await viewModel.apiClient.fetchGettingStarted(), !progress.allDone else { return }
+        guard showAtStartup, !progress.allDone else { return }
         Self.didAutoShowGettingStarted = true
         isShowingGettingStarted = true
+    }
+
+    private func checkAwards() async {
+        if let progress = try? await viewModel.apiClient.fetchGettingStarted() {
+            awardsService.recordProgress(progress)
+        }
     }
 
     /// The shared in-app profile screen (TODDProfileKit), replacing the old
@@ -207,6 +229,11 @@ struct CardFeedView: View {
                         isShowingGettingStarted = true
                     } label: {
                         Label("Getting Started", systemImage: "checklist")
+                    }
+                    Button {
+                        isShowingAwards = true
+                    } label: {
+                        Label("Awards", systemImage: "rosette")
                     }
                     Button {
                         isShowingProfile = true

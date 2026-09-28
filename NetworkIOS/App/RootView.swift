@@ -1,5 +1,6 @@
 import SwiftUI
 import TODDAuthKit
+import TODDAwardsKit
 
 /// Gates the whole app behind sign-in + a fresh biometric check, same as
 /// `pulse-ios` — Network shows real CRM data, so (unlike Maya, which works
@@ -13,12 +14,14 @@ struct RootView: View {
     /// green checkmark.
     @ObservedObject private var sessionGate: SessionUnlockGate
     let apiClient: NetworkAPIClient
+    @ObservedObject var awardsService: AwardsService
 
-    init(authService: AuthService, entitlementService: EntitlementService, apiClient: NetworkAPIClient) {
+    init(authService: AuthService, entitlementService: EntitlementService, apiClient: NetworkAPIClient, awardsService: AwardsService) {
         self.authService = authService
         self.entitlementService = entitlementService
         self.sessionGate = authService.sessionGate
         self.apiClient = apiClient
+        self.awardsService = awardsService
     }
 
     var body: some View {
@@ -42,9 +45,33 @@ struct RootView: View {
             } else {
                 CardFeedView(
                     viewModel: CardFeedViewModel(apiClient: apiClient, currentUserId: authService.userId),
-                    authService: authService
+                    authService: authService,
+                    awardsService: awardsService
                 )
             }
+        }
+        // Awards live on the account, not the device: pull them on sign-in
+        // and at launch so an award earned on the iPad shows (and isn't
+        // re-celebrated) on the iPhone.
+        .onChange(of: authService.userId) { oldValue, newValue in
+            if oldValue == nil, newValue != nil {
+                Task { await awardsService.sync() }
+            }
+        }
+        .task {
+            if authService.userId != nil { await awardsService.sync() }
+        }
+        .fullScreenCover(item: Binding(
+            get: { awardsService.pendingUnlock },
+            set: { newValue in if newValue == nil { awardsService.dismissCurrentUnlock() } }
+        )) { award in
+            AwardUnlockView(
+                award: award,
+                appName: "Network",
+                unlockedCount: awardsService.unlockedCount,
+                totalCount: awardsService.totalCount,
+                onContinue: { awardsService.dismissCurrentUnlock() }
+            )
         }
     }
 

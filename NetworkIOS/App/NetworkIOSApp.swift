@@ -2,11 +2,13 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseCore
 import TODDAuthKit
+import TODDAwardsKit
 
 @main
 struct NetworkIOSApp: App {
     @StateObject private var authService = AuthService()
     @StateObject private var entitlementService: EntitlementService
+    @StateObject private var awardsService: AwardsService
     private let apiClient: NetworkAPIClient
 
     init() {
@@ -26,6 +28,7 @@ struct NetworkIOSApp: App {
         let config = AppConfig.fromBundle()
         let authService = AuthService()
         _authService = StateObject(wrappedValue: authService)
+        _awardsService = StateObject(wrappedValue: NetworkAwards.makeService(authService: authService))
         let apiClient = NetworkAPIClient(config: config, authService: authService)
         self.apiClient = apiClient
         _entitlementService = StateObject(wrappedValue: EntitlementService(
@@ -37,7 +40,7 @@ struct NetworkIOSApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(authService: authService, entitlementService: entitlementService, apiClient: apiClient)
+            RootView(authService: authService, entitlementService: entitlementService, apiClient: apiClient, awardsService: awardsService)
                 .onOpenURL { url in
                     _ = GoogleSignInHelper.handle(url)
                 }
