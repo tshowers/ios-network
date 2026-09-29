@@ -74,6 +74,7 @@ final class EntitlementService: ObservableObject {
     }
 
     func loadProducts() async {
+        if PaywallScreenshot.current != nil { return }
         guard !configuredProductIds.isEmpty else {
             errorMessage = "Network's App Store subscription isn't configured yet."
             return
