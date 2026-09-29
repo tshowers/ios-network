@@ -25,8 +25,8 @@ enum NetworkAPIError: LocalizedError {
 ///     ID token (`requireVerifiedUser` in `networkRoutes.js`).
 ///   - `/email-drafting/draft` and `/send-email` — the same shared static
 ///     `TALIFERRO_TECH` key every TODD frontend already ships (`validateApiKey`
-///     server-side for the draft endpoint; `/send-email` itself checks nothing at
-///     all beyond that, same as SayIt's `EmailService` calling it directly).
+///     server-side for the draft endpoint). `/send-email` now takes the
+///     signed-in user's Firebase ID token instead (sendEmailAuth.js).
 final class NetworkAPIClient {
     private let config: AppConfig
     private let authService: AuthService
@@ -100,12 +100,17 @@ final class NetworkAPIClient {
     func sendEmail(to recipient: String, subject: String, html: String) async throws {
         guard let tenantId = await authService.tenantId else { throw NetworkAPIError.notAuthenticated }
 
-        let payload = SendEmailRequest(to: recipient, subject: subject, html: html, tenantId: tenantId)
+        guard let senderEmail = await authService.userEmail, !senderEmail.isEmpty else { throw NetworkAPIError.notAuthenticated }
+
+        let payload = SendEmailRequest(to: recipient, subject: subject, html: html, tenantId: tenantId, from: .init(email: senderEmail))
         let url = config.apiBaseURL.appending(path: "send-email")
+        // A real sign-in, not the shared site key: /send-email checks the
+        // token's tenant matches (sendEmailAuth.js).
+        let idToken = try await authService.freshIdToken()
         _ = try await request(
             method: "POST",
             url: url,
-            authorization: "Bearer \(config.apiKey)",
+            authorization: "Bearer \(idToken)",
             body: try encoder.encode(payload)
         )
     }

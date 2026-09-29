@@ -42,10 +42,17 @@ struct DraftEmailEnvelope: Decodable {
 /// connected via TODD web onboarding (senderResolution.service handles that
 /// server-side); there is no in-app mailbox-connection flow here.
 struct SendEmailRequest: Encodable {
+    struct Sender: Encodable {
+        let email: String
+    }
+
     let to: String
     let subject: String
     let html: String
     let tenantId: String
+    /// Required by /send-email; the backend resolves it against the
+    /// tenant's approved sender (resolveOutboundSenderIdentity).
+    let from: Sender
 }
 
 /// Request body for `POST /contact-insight` — mirrors `getContactInsight` in
