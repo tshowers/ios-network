@@ -40,7 +40,15 @@ struct NetworkIOSApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if PaywallScreenshot.current != nil {
+            if RelationshipsDemo.isOn {
+                MainTabView(authService: authService, awardsService: awardsService, apiClient: apiClient)
+            } else if let startCard = ScreenshotDemo.startCard {
+                CardFeedView(
+                    viewModel: .screenshotDemo(apiClient: apiClient, startCard: startCard),
+                    authService: authService,
+                    awardsService: awardsService
+                )
+            } else if PaywallScreenshot.current != nil {
                 PaywallView(entitlementService: entitlementService, onSignOut: {})
             } else {
                 RootView(authService: authService, entitlementService: entitlementService, apiClient: apiClient, awardsService: awardsService)

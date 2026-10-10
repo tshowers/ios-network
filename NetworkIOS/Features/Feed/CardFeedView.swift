@@ -12,6 +12,8 @@ struct CardFeedView: View {
     @StateObject var viewModel: CardFeedViewModel
     @ObservedObject var authService: AuthService
     @ObservedObject var awardsService: AwardsService
+    /// Tells the shared contact list about a contact added from here.
+    var onContactSaved: (ContactDetail) -> Void = { _ in }
     @State private var isShowingSearch = false
     @State private var isShowingStatus = false
     @State private var isShowingProfile = false
@@ -20,7 +22,7 @@ struct CardFeedView: View {
     /// Auto-show the Getting Started checklist at most once per launch.
     private static var didAutoShowGettingStarted = false
     @State private var isShowingLogoutConfirmation = false
-    @State private var isShowingCreateWarning = false
+    @State private var isAddingContact = false
     @State private var shareItem: IdentifiableURL?
     @State private var isOpeningWebHandoff = false
     @State private var webHandoffErrorMessage: String?
@@ -36,7 +38,6 @@ struct CardFeedView: View {
         (title: "Home", icon: "house", path: "/", host: networkHost),
         (title: "Relationships", icon: "point.3.connected.trianglepath.dotted", path: "/app", host: networkHost),
         (title: "Contacts", icon: "person.crop.rectangle.stack", path: "/contact-list", host: networkHost),
-        (title: "Add", icon: "person.crop.circle.badge.plus", path: "/contact-edit", host: networkHost),
         (title: "Import", icon: "square.and.arrow.down", path: "/contact-import", host: networkHost),
         (title: "Pipeline", icon: "chart.bar.xaxis", path: "/contact-deal-flow", host: networkHost),
         (title: "Daily Momentum", icon: "flame", path: "/daily-momentum", host: toddHost),
@@ -135,13 +136,11 @@ struct CardFeedView: View {
         } message: {
             Text("You can sign in again with your TODD account.")
         }
-        .alert("You'll leave Network", isPresented: $isShowingCreateWarning) {
-            Button("Cancel", role: .cancel) { }
-            Button("Continue") {
-                openWebHandoff(path: "/contact-edit", host: Self.networkHost)
+        .sheet(isPresented: $isAddingContact) {
+            ContactEditorView(mode: .create, apiClient: viewModel.apiClient) { created in
+                onContactSaved(created)
+                Task { await viewModel.loadInitial() }
             }
-        } message: {
-            Text("Adding a new contact opens network.taliferro.tech in your browser, already signed in. You'll leave the app to do this.")
         }
         .alert("Couldn't open that page", isPresented: .constant(webHandoffErrorMessage != nil)) {
             Button("OK") { webHandoffErrorMessage = nil }
@@ -273,7 +272,7 @@ struct CardFeedView: View {
                 }
 
                 Button {
-                    isShowingCreateWarning = true
+                    isAddingContact = true
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 21, weight: .semibold))
@@ -337,7 +336,7 @@ struct CardFeedView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
             if viewModel.errorMessage.isEmpty {
-                Button("Add a Contact") { isShowingCreateWarning = true }
+                Button("Add a Contact") { isAddingContact = true }
                     .buttonStyle(.borderedProminent)
             }
             Spacer()

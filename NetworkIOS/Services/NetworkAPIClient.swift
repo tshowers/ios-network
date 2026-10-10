@@ -4,6 +4,9 @@ enum NetworkAPIError: LocalizedError {
     case notAuthenticated
     case invalidResponse
     case httpError(Int)
+    /// A non-2xx response that carried the server's own `message` (and
+    /// sometimes a `code`, e.g. "CONTACT_LIMIT").
+    case server(status: Int, message: String, code: String?)
 
     var errorDescription: String? {
         switch self {
@@ -13,6 +16,8 @@ enum NetworkAPIError: LocalizedError {
             return "The server response could not be understood."
         case .httpError(let code):
             return "The server returned HTTP \(code)."
+        case .server(_, let message, _):
+            return message
         }
     }
 }
@@ -179,6 +184,68 @@ final class NetworkAPIClient {
         return try decoder.decode(AppStoreEntitlementEnvelope.self, from: data).entitlement
     }
 
+    // MARK: - Contacts (/mobile/contacts, networkMobileRoutes.js)
+
+    func fetchContactPage(cursor: String?, limit: Int = 500) async throws -> ContactPage {
+        var items = [URLQueryItem(name: "limit", value: String(limit))]
+        if let cursor { items.append(URLQueryItem(name: "cursor", value: cursor)) }
+        return try await contactsRequest("GET", path: "", query: items)
+    }
+
+    func fetchContact(id: String) async throws -> ContactDetail {
+        try await contactsRequest("GET", path: id)
+    }
+
+    func createContact(_ input: ContactInput) async throws -> ContactDetail {
+        try await contactsRequest("POST", path: "", body: input)
+    }
+
+    func updateContact(id: String, _ input: ContactInput) async throws -> ContactDetail {
+        try await contactsRequest("PUT", path: id, body: input)
+    }
+
+    func deleteContact(id: String) async throws {
+        let _: EmptyData? = try await contactsRequest("DELETE", path: id)
+    }
+
+    func setContactStatus(id: String, status: String) async throws -> ContactDetail {
+        try await contactsRequest("PUT", path: "\(id)/status", body: ["status": status])
+    }
+
+    func addNote(contactId: String, subject: String, body: String) async throws -> ContactDetail {
+        try await contactsRequest("POST", path: "\(contactId)/notes", body: ["subject": subject, "body": body])
+    }
+
+    func updateNote(contactId: String, noteId: String, subject: String, body: String) async throws -> ContactDetail {
+        try await contactsRequest("PUT", path: "\(contactId)/notes/\(noteId)", body: ["subject": subject, "body": body])
+    }
+
+    func deleteNote(contactId: String, noteId: String) async throws -> ContactDetail {
+        try await contactsRequest("DELETE", path: "\(contactId)/notes/\(noteId)")
+    }
+
+    /// Records a call, text, email or meeting and moves lastContacted to now.
+    func logInteraction(contactId: String, type: String, notes: String = "") async throws -> ContactDetail {
+        try await contactsRequest("POST", path: "\(contactId)/interactions", body: ["type": type, "notes": notes])
+    }
+
+    private func contactsRequest<T: Decodable>(_ method: String, path: String, query: [URLQueryItem] = [], body: (any Encodable)? = nil) async throws -> T {
+        var url = config.apiBaseURL.appending(path: "mobile/contacts")
+        if !path.isEmpty { url = url.appending(path: path) }
+        if !query.isEmpty, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            components.queryItems = query
+            url = components.url ?? url
+        }
+        let idToken = try await authService.freshIdToken()
+        let data = try await request(
+            method: method,
+            url: url,
+            authorization: "Bearer \(idToken)",
+            body: try body.map { try encoder.encode($0) }
+        )
+        return try decoder.decode(DataEnvelope<T>.self, from: data).data
+    }
+
     // MARK: - Request building
 
     private func request(method: String, url: URL, authorization: String, body: Data? = nil) async throws -> Data {
@@ -195,9 +262,20 @@ final class NetworkAPIClient {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
+            if let body = try? JSONDecoder().decode(ServerErrorBody.self, from: data), let message = body.message, !message.isEmpty {
+                throw NetworkAPIError.server(status: httpResponse.statusCode, message: message, code: body.code)
+            }
             throw NetworkAPIError.httpError(httpResponse.statusCode)
         }
 
         return data
     }
 }
+
+private struct ServerErrorBody: Decodable {
+    let message: String?
+    let code: String?
+}
+
+/// Decodes the `null` data of responses that return nothing.
+private struct EmptyData: Decodable {}

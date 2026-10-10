@@ -43,11 +43,9 @@ struct RootView: View {
             } else if !entitlementService.isEntitled {
                 PaywallView(entitlementService: entitlementService, onSignOut: signOut)
             } else {
-                CardFeedView(
-                    viewModel: CardFeedViewModel(apiClient: apiClient, currentUserId: authService.userId),
-                    authService: authService,
-                    awardsService: awardsService
-                )
+                MainTabView(authService: authService, awardsService: awardsService, apiClient: apiClient)
+                    // A different account gets a fresh store.
+                    .id(authService.userId)
             }
         }
         // Awards live on the account, not the device: pull them on sign-in
@@ -56,6 +54,10 @@ struct RootView: View {
         .onChange(of: authService.userId) { oldValue, newValue in
             if oldValue == nil, newValue != nil {
                 Task { await awardsService.sync() }
+            }
+            // Signed out (or account deleted): remove contacts saved on the device.
+            if oldValue != nil, newValue == nil {
+                ContactStore.clearAllCaches()
             }
         }
         .task {
