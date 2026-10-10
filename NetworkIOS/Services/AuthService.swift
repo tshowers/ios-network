@@ -2,6 +2,7 @@ import Foundation
 import FirebaseAuth
 import FirebaseFirestore
 import TODDAuthKit
+import TODDProfileKit
 
 /// Mirrors `frontend/src/app/services/auth.service.ts`'s `resolveAssignedTenantId`
 /// (same `users/{uid}.companyId` lookup, falling back to the uid) — Network's cards
@@ -89,8 +90,27 @@ final class AuthService: ObservableObject {
         let decoded = try JSONDecoder().decode(BootstrapResponse.self, from: data)
         tenantId = decoded.tenantId
         await submitOnboardingProfileIfNeeded()
+        // Fill the profile's name from Sign in with Apple / Google instead of
+        // ever asking for it (App Review guideline 4).
+        await syncSignInName()
     }
 
+
+    /// The name Apple or Google already gave us -> the TODD profile (blank
+    /// fields only), so no screen asks for it (TODDProfileKit.SignInNameSync).
+    func syncSignInName() async {
+        guard let user = currentUser else { return }
+        await SignInNameSync.submitIfNeeded(
+            uid: user.uid,
+            displayName: user.displayName,
+            source: "network-ios",
+            baseURL: AppConfig.fromBundle().apiBaseURL,
+            idToken: { [weak self] in
+                guard let self else { throw AuthServiceError.notSignedIn }
+                return try await self.freshIdToken()
+            }
+        )
+    }
     /// Saves the answers from the pre-sign-in `OnboardingWizardView` to the
     /// user's TODD profile (`POST /api/onboarding/profile`, which only fills
     /// blank fields - an existing profile is never overwritten). Best-effort:

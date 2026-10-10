@@ -75,6 +75,11 @@ final class CardFeedViewModel: ObservableObject {
 
     /// Fire-and-forget, same reasoning as `loadInsightIfNeeded` — a header
     /// counter isn't worth blocking the card feed over if it fails.
+    /// Screenshot demo only (ScreenshotDemo.swift).
+    func setDemoTotal(_ total: Int) {
+        totalContacts = total
+    }
+
     func loadTotalContactsIfNeeded() {
         guard totalContacts == nil else { return }
         Task {
